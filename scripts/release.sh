@@ -8,7 +8,8 @@ NEW="$1"; MSG="${2:-Release $1}"
 [[ "$NEW" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "version must be X.Y.Z"; exit 1; }
 
 echo "$NEW" > VERSION
-sed -i -E "s/(newTag: \")[^\"]+(\")/\1${NEW}\2/" k8s/kustomization.yaml
+# only the LabBot image tag (the line after its "name:"), not other images such as postgres
+sed -i -E '/name: ghcr.io\/togarhugo\/cisco-ai-defense-lab/{n;s/(newTag: ")[^"]+(")/\1'"${NEW}"'\2/}' k8s/kustomization.yaml
 git add -A
 git commit -m "release: v${NEW} - ${MSG}"
 git push origin HEAD:main

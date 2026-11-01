@@ -5,15 +5,36 @@ metadata:
   labels: {app: litellm}
 spec:
   replicas: 1
+  # Rolling update with one replica: the NEW pod must become Ready before the OLD one is stopped,
+  # so a failed upgrade (e.g. database not ready) never takes the working gateway down.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
   selector:
     matchLabels: {app: litellm}
   template:
     metadata:
       labels: {app: litellm}
     spec:
+      initContainers:
+        # Wait until PostgreSQL accepts connections (uses the LiteLLM image's own Python).
+        - name: wait-for-db
+          image: ghcr.io/berriai/litellm-database:main-stable
+          command:
+            - python
+            - -c
+            - |
+              import socket, sys, time
+              for i in range(120):
+                  try:
+                      socket.create_connection(("litellm-db", 5432), 3).close()
+                      print("litellm-db is up"); sys.exit(0)
+                  except OSError:
+                      print("waiting for litellm-db...", flush=True); time.sleep(3)
+              sys.exit("litellm-db did not become reachable")
       containers:
         - name: litellm
-          image: ghcr.io/berriai/litellm:main-stable   # pin a specific tag for repeatable labs
+          image: ghcr.io/berriai/litellm-database:main-stable   # LiteLLM + database/UI support; pin a tag for repeatable labs
           args: ["--config", "/app/config.yaml", "--port", "4000"]
           ports:
             - containerPort: 4000
@@ -24,25 +45,41 @@ spec:
               valueFrom: {secretKeyRef: {name: lab-secrets, key: LITELLM_MASTER_KEY}}
             - name: AIDEFENSE_GATEWAY_URL
               valueFrom: {secretKeyRef: {name: lab-secrets, key: AIDEFENSE_GATEWAY_URL}}
+            # --- admin UI + database ---
+            - name: LITELLM_DB_PASSWORD
+              valueFrom: {secretKeyRef: {name: lab-secrets, key: LITELLM_DB_PASSWORD}}
+            - name: DATABASE_URL          # $(VAR) is expanded by Kubernetes from the env var above
+              value: "postgresql://litellm:$(LITELLM_DB_PASSWORD)@litellm-db:5432/litellm"
+            - name: LITELLM_SALT_KEY      # encrypts stored credentials; NEVER change it once set
+              valueFrom: {secretKeyRef: {name: lab-secrets, key: LITELLM_SALT_KEY}}
+            - name: UI_USERNAME
+              value: admin
+            - name: UI_PASSWORD
+              valueFrom: {secretKeyRef: {name: lab-secrets, key: UI_PASSWORD}}
           volumeMounts:
             - name: config
               mountPath: /app/config.yaml
               subPath: config.yaml
+          # Startup runs database migrations, which can take a few minutes the first time.
+          startupProbe:
+            httpGet: {path: /health/liveliness, port: 4000}
+            periodSeconds: 10
+            failureThreshold: 36
           readinessProbe:
             httpGet: {path: /health/readiness, port: 4000}
-            initialDelaySeconds: 15
             periodSeconds: 10
           livenessProbe:
             httpGet: {path: /health/liveliness, port: 4000}
-            initialDelaySeconds: 40
             periodSeconds: 20
+            failureThreshold: 3
           resources:
             requests: {cpu: 100m, memory: 512Mi}
-            limits: {memory: 1Gi}
+            limits: {memory: 2Gi}
       volumes:
         - name: config
           configMap: {name: litellm-config}
 ---
+# Internal service used by LabBot (unchanged)
 apiVersion: v1
 kind: Service
 metadata:
@@ -52,3 +89,18 @@ spec:
   ports:
     - port: 4000
       targetPort: 4000
+---
+# Admin UI for people: http://<ubuntu-ip>:30400/ui   (user: admin, password: UI_PASSWORD secret)
+# NOTE: this port also exposes the LiteLLM API (master key still required). Restrict it to your
+# lab network with the Ubuntu firewall.
+apiVersion: v1
+kind: Service
+metadata:
+  name: litellm-ui
+spec:
+  type: NodePort
+  selector: {app: litellm}
+  ports:
+    - port: 4000
+      targetPort: 4000
+      nodePort: 30400

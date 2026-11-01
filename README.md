@@ -21,7 +21,8 @@ Claude without being inspected.
 | Component | Where | Purpose |
 |---|---|---|
 | `labbot` | k8s Deployment, NodePort **30080** | Chat UI + API. Calls LiteLLM only |
-| `litellm` | k8s Deployment, ClusterIP :4000 | AI gateway. Holds the Anthropic key, sends Claude traffic to the AI Defense gateway URL |
+| `litellm` | k8s Deployment, ClusterIP :4000, UI on NodePort **30400** | AI gateway. Holds the Anthropic key, sends Claude traffic to the AI Defense gateway URL. Admin UI at `/ui` |
+| `litellm-db` | k8s Deployment, ClusterIP :5432 | PostgreSQL for the LiteLLM UI (keys, spend, logs). Data on the node: `/var/lib/ai-defense-lab/postgres` |
 | AI Defense gateway | Cisco cloud | Inline inspection, allow/block, events in the dashboard |
 | Claude | Anthropic cloud | The LLM (`claude-haiku-5-5` by default, `claude-opus-5-5` optional) |
 
@@ -123,6 +124,9 @@ Open `http://<ubuntu-ip>:30080`. The header should show **AI Defense: gateway** 
 kubectl -n ai-defense-lab get pods
 ```
 
+The first deploy also creates the LiteLLM UI secrets (database password, salt key, UI password)
+and **prints the UI password once**. See [LiteLLM admin UI](#litellm-admin-ui).
+
 ## 8. Verify each hop
 
 **a. Pods can resolve and reach the internet** (the most common on-prem blockers are DNS, proxy or firewall).
@@ -195,6 +199,49 @@ See [docs/WORKFLOW.md](docs/WORKFLOW.md). Short version:
 cd ~/cisco-ai-defense-lab && ./scripts/deploy.sh
 ```
 
+## LiteLLM admin UI
+
+LiteLLM's web UI shows **spend and tokens per model and per request**, request logs, and lets you create
+**virtual API keys** with budgets and rate limits, so you can see what each client sent through the AI Defense gateway.
+
+| | |
+|---|---|
+| URL | `http://<ubuntu-ip>:30400/ui` |
+| Username | `admin` |
+| Password | printed once by the first `./scripts/deploy.sh`; show it again with the command below |
+
+```bash
+kubectl -n ai-defense-lab get secret lab-secrets -o jsonpath='{.data.UI_PASSWORD}' | base64 -d; echo
+```
+
+**What it adds without touching the working flow:** LabBot still calls `http://litellm:4000` with the master key,
+models and AI Defense routing are still defined in `k8s/litellm-config.yaml` (the config file stays the source of truth),
+and the new database only stores keys, spend and logs. If the database is down, LiteLLM keeps routing traffic.
+
+**Where to look**
+- **Usage**: spend and tokens by model. Costs use the Haiku and Opus prices set in `litellm-config.yaml`.
+- **Logs**: one row per request (model, tokens, cost, status). Prompt and response text is **not** stored by default.
+  Blocked requests also appear in the AI Defense dashboard → *Events*.
+- **Virtual Keys**: create a dedicated key (with budget / allowed models) instead of sharing the master key.
+- **Models**: lists the models from the config file. Edit them in git, not in the UI.
+
+**Security**
+- The UI port also exposes the LiteLLM API (the master key is still required). Only allow your lab network:
+
+```bash
+sudo ufw allow from <your-lab-subnet> to any port 30400 proto tcp
+```
+
+- Anyone with the UI password can create keys and see spend. They cannot see your Anthropic key.
+- The master key still works as the UI login password too. Keep it private.
+- `LITELLM_SALT_KEY` (in `lab-secrets`) encrypts stored credentials. **Never change or delete it** after the first deploy.
+
+**Reset the database** (deletes all keys, spend and logs; the chatbot is not affected):
+
+```bash
+kubectl -n ai-defense-lab scale deploy/litellm-db --replicas=0 && sudo rm -rf /var/lib/ai-defense-lab/postgres && kubectl -n ai-defense-lab scale deploy/litellm-db --replicas=1
+```
+
 ## Configuration reference
 
 | Setting | Default | Where |
@@ -203,7 +250,8 @@ cd ~/cisco-ai-defense-lab && ./scripts/deploy.sh
 | `LLM_MODEL` | `claude-haiku` (Haiku 5.5 via AI Defense gateway) | ConfigMap `labbot-config` |
 | `LLM_BASE_URL` | `http://litellm:4000` | ConfigMap `labbot-config` |
 | Claude models behind the aliases | `anthropic/claude-haiku-5-5`, `anthropic/claude-opus-5-5` | ConfigMap `litellm-config` |
-| `ANTHROPIC_API_KEY`, `AIDEFENSE_GATEWAY_URL`, `LITELLM_MASTER_KEY` | – | Secret `lab-secrets` |
+| `ANTHROPIC_API_KEY`, `AIDEFENSE_GATEWAY_URL`, `LITELLM_MASTER_KEY` | – | Secret `lab-secrets` (you create) |
+| `LITELLM_DB_PASSWORD`, `LITELLM_SALT_KEY`, `UI_PASSWORD` | generated | Secret `lab-secrets` (added automatically by `deploy.sh`) |
 
 ## Troubleshooting
 
@@ -220,6 +268,12 @@ cd ~/cisco-ai-defense-lab && ./scripts/deploy.sh
 | `Cannot reach the LiteLLM gateway` | `kubectl -n ai-defense-lab get pods`: litellm not Ready yet |
 | Timeouts | Egress/proxy (step 8a) |
 | litellm pod `OOMKilled` | Raise its memory limit in `k8s/litellm.yaml` |
+| `litellm-db` pod `ImagePullBackOff` | Docker Hub is blocked. In `k8s/kustomization.yaml` uncomment `newName: public.ecr.aws/docker/library/postgres`, or allow `registry-1.docker.io` |
+| litellm pod stuck in `Init:0/1` | Waiting for the database: `kubectl -n ai-defense-lab get pods` and check `litellm-db` is `1/1`. The old litellm pod keeps serving meanwhile |
+| `deploy.sh` says litellm did not become ready | The previous pod still serves the chatbot. `kubectl -n ai-defense-lab logs deploy/litellm --tail=40` (first start runs ~200 database migrations, allow a few minutes) |
+| UI login fails | Use `admin` + the `UI_PASSWORD` secret (command above). The master key also works as the password |
+| UI Usage / Logs empty | Only requests that go through LiteLLM after the database was added are recorded. Send a chat message and refresh |
+| UI port not reachable | `sudo ufw status`; allow port 30400 from your subnet |
 
 ### DNS problems
 

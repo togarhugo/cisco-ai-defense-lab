@@ -32,6 +32,22 @@ That runs `git pull` → `kubectl apply -k k8s/` → restarts the pods → waits
 cat VERSION && kubectl -n ai-defense-lab get deploy labbot -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
 ```
 
+## Upgrading to v1.3.0 (LiteLLM admin UI + database) for the first time
+
+Your checkout still has the old `deploy.sh`, so pull first, then run the new one:
+
+```bash
+cd ~/cisco-ai-defense-lab && git pull && ./scripts/deploy.sh
+```
+
+It adds the UI/database secrets, starts PostgreSQL, then replaces the LiteLLM pod. The old
+LiteLLM pod keeps serving until the new one is ready, so the chatbot stays available during the upgrade.
+The first start runs the database migrations (about 1 to 3 minutes). It prints the UI password once.
+
+Rolling back (`./scripts/deploy.sh v1.2.0`) restores the previous LiteLLM; the database pod and the
+`litellm-ui` service stay in the cluster, harmless. Remove them with
+`kubectl -n ai-defense-lab delete deploy/litellm-db svc/litellm-db svc/litellm-ui`.
+
 ## See what changed
 
 ```bash

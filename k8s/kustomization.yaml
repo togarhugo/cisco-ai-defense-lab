@@ -4,9 +4,14 @@ namespace: ai-defense-lab
 resources:
   - namespace.yaml
   - litellm-config.yaml
+  - litellm-db.yaml
   - litellm.yaml
   - labbot-config.yaml
   - labbot.yaml
 images:
+  # PostgreSQL for the LiteLLM UI. If your firewall blocks Docker Hub, use the AWS mirror instead:
+  #   newName: public.ecr.aws/docker/library/postgres
+  - name: postgres
+    newTag: "16-alpine"
   - name: ghcr.io/togarhugo/cisco-ai-defense-lab
-    newTag: "1.2.0"   # bumped automatically by scripts/release.sh
+    newTag: "1.3.0"   # bumped automatically by scripts/release.sh

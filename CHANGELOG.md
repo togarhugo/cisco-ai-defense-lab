@@ -2,6 +2,22 @@
 
 All notable changes to this project. Versions follow [SemVer](https://semver.org): MAJOR.MINOR.PATCH.
 
+## [1.3.0] - 2026-11-01
+### Added
+- **LiteLLM admin UI** at `http://<ubuntu-ip>:30400/ui` (user `admin`), with usage/spend, request logs
+  and virtual keys, backed by a new `litellm-db` PostgreSQL pod (data on the node via hostPath, survives reboots).
+- `scripts/ensure-secrets.sh`: adds `LITELLM_DB_PASSWORD`, `LITELLM_SALT_KEY` and `UI_PASSWORD` to
+  `lab-secrets` only if missing; run automatically by `deploy.sh`. Existing keys are never changed.
+- Per-token prices for Haiku 5.5 and Opus 5.5 in the LiteLLM config, so spend in the UI is correct.
+### Changed
+- LiteLLM image is now `litellm-database:main-stable` (same proxy, with database support).
+- LiteLLM rollout never takes the working pod down: `maxUnavailable: 0`, a startup probe for the first
+  migrations, and an init container that waits for the database.
+- `deploy.sh` waits for the database first, explains failures, and is safe against being replaced by
+  `git pull` while running. `release.sh` now only bumps the LabBot image tag.
+### Unchanged
+- LabBot, model aliases, AI Defense gateway integration and `LITELLM_MASTER_KEY` behaviour.
+
 ## [1.2.0] - 2026-11-01
 ### Added
 - LiteLLM aliases `claude-haiku` (Claude Haiku 5.5 via AI Defense gateway) and

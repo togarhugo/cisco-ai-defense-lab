@@ -1,0 +1,64 @@
+# PostgreSQL for the LiteLLM admin UI (virtual keys, spend tracking, request logs, users/teams).
+# Single-node lab: data lives on the node at /var/lib/ai-defense-lab/postgres (hostPath), so it
+# survives pod restarts AND node reboots, and needs no StorageClass. Not backed up.
+# Reset the database:  kubectl -n ai-defense-lab scale deploy/litellm-db --replicas=0
+#                      sudo rm -rf /var/lib/ai-defense-lab/postgres
+#                      kubectl -n ai-defense-lab scale deploy/litellm-db --replicas=1
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: litellm-db
+  labels: {app: litellm-db}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate          # never two postgres processes on the same data directory
+  selector:
+    matchLabels: {app: litellm-db}
+  template:
+    metadata:
+      labels: {app: litellm-db}
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine     # tag/registry can be changed in kustomization.yaml
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: litellm
+            - name: POSTGRES_DB
+              value: litellm
+            - name: POSTGRES_PASSWORD
+              valueFrom: {secretKeyRef: {name: lab-secrets, key: LITELLM_DB_PASSWORD}}
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec: {command: ["pg_isready", "-U", "litellm", "-d", "litellm"]}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec: {command: ["pg_isready", "-U", "litellm", "-d", "litellm"]}
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {memory: 512Mi}
+      volumes:
+        - name: data
+          hostPath:
+            path: /var/lib/ai-defense-lab/postgres
+            type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: litellm-db
+spec:
+  selector: {app: litellm-db}
+  ports:
+    - port: 5432
+      targetPort: 5432
