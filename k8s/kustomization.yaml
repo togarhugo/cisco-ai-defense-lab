@@ -9,4 +9,4 @@ resources:
   - labbot.yaml
 images:
   - name: ghcr.io/togarhugo/cisco-ai-defense-lab
-    newTag: "1.1.0"   # bumped automatically by scripts/release.sh
+    newTag: "1.1.1"   # bumped automatically by scripts/release.sh

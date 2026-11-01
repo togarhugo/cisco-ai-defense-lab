@@ -2,6 +2,17 @@
 
 All notable changes to this project. Versions follow [SemVer](https://semver.org): MAJOR.MINOR.PATCH.
 
+## [1.1.1] - 2026-11-01
+### Fixed
+- README: wrong example gateway host (`gateway.aidefense.cisco.com`) replaced with the real
+  format `<region>.gateway.aidefense.security.cisco.com`; reachability test now reads the host
+  from the secret.
+- README: repo and image are public, so the private-repo token and pull-secret steps were removed.
+### Added
+- README: *DNS problems* section (point CoreDNS at a public resolver without changing Ubuntu DNS).
+### Changed
+- `labbot` Deployment no longer references the `ghcr-pull` pull secret (image is public).
+
 ## [1.1.0] - 2026-11-01
 ### Added
 - **AI Defense gateway mode** (new default, `AIDEFENSE_MODE=gateway`):

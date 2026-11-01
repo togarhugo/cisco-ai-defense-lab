@@ -43,7 +43,7 @@ On the Ubuntu node (22.04 / 24.04):
 | Working single-node Kubernetes (k3s, microk8s, kubeadm, ...) | `kubectl get nodes` shows `Ready` |
 | `kubectl` with kustomize (built in since kubectl 1.14) | `kubectl version --client` |
 | `git`, `curl`, `openssl` | `sudo apt update && sudo apt install -y git curl openssl` |
-| Outbound HTTPS from pods to `gateway.aidefense.cisco.com`, `api.anthropic.com`, `ghcr.io` | step 8 |
+| Outbound DNS + HTTPS from pods to your AI Defense gateway host (e.g. `ap.gateway.aidefense.security.cisco.com`), `api.anthropic.com`, `ghcr.io` | step 8 |
 | Anthropic API key | step 2 |
 | Cisco AI Defense tenant (licensed, opened from Security Cloud Control) | step 3 |
 
@@ -64,8 +64,9 @@ In the AI Defense dashboard (menu names can differ slightly by release):
 3. Provider / endpoint: **Anthropic** (`api.anthropic.com`, Messages API).
 4. **Attach a policy** to the connection (Prompt Injection, Jailbreak, PII, PCI, Toxicity ... set to *Block*).
    Without a policy, nothing gets blocked.
-5. Copy the connection's **Gateway URL**. It looks like
-   `https://gateway.aidefense.cisco.com/<tenant-id>/connections/<connection-id>`.
+5. Copy the connection's **Gateway URL** with the copy button. It looks like
+   `https://<region>.gateway.aidefense.security.cisco.com/<tenant-id>/connections/<connection-id>`
+   (region e.g. `ap`, `us`, `eu`).
    Copy it **exactly as shown**, without `/v1/messages`: LiteLLM appends that itself.
 
 > If **Anthropic** isn't offered as a provider for Gateway connections in your tenant, gateway mode
@@ -78,12 +79,7 @@ In the AI Defense dashboard (menu names can differ slightly by release):
 cd ~ && git clone https://github.com/togarhugo/cisco-ai-defense-lab.git && cd cisco-ai-defense-lab
 ```
 
-The repo is **private**: when git asks for a password, use a GitHub *Personal Access Token*
-(GitHub → Settings → Developer settings → Personal access tokens), not your GitHub password. To store it:
-
-```bash
-git config --global credential.helper store
-```
+The repo is public, so no login is needed. Clone only once; afterwards `./scripts/deploy.sh` pulls updates.
 
 ## 5. Create the namespace and secrets (never committed to git)
 
@@ -96,30 +92,21 @@ kubectl apply -f k8s/namespace.yaml
 ```bash
 kubectl -n ai-defense-lab create secret generic lab-secrets \
   --from-literal=ANTHROPIC_API_KEY='sk-ant-xxxxxxxx' \
-  --from-literal=AIDEFENSE_GATEWAY_URL='https://gateway.aidefense.cisco.com/<tenant-id>/connections/<connection-id>' \
+  --from-literal=AIDEFENSE_GATEWAY_URL='https://<region>.gateway.aidefense.security.cisco.com/<tenant-id>/connections/<connection-id>' \
   --from-literal=LITELLM_MASTER_KEY="sk-$(openssl rand -hex 16)"
 ```
 
-## 6. Let the cluster pull the LabBot image
-
-The image is built by GitHub Actions: `ghcr.io/togarhugo/cisco-ai-defense-lab:<version>`.
-The repo is private, so the image is private too. Pick **one**:
-
-**A. Pull secret (recommended)**: create a GitHub token (classic) with the `read:packages` scope:
+Check that all three keys are there (shows sizes, not values):
 
 ```bash
-kubectl -n ai-defense-lab create secret docker-registry ghcr-pull \
-  --docker-server=ghcr.io --docker-username=togarhugo --docker-password='ghp_xxxxxxxx'
+kubectl -n ai-defense-lab describe secret lab-secrets
 ```
 
-**B. Make the package public**: GitHub → your profile → *Packages* → `cisco-ai-defense-lab` →
-*Package settings* → *Change visibility* → Public. (The image contains no secrets.)
+## 6. Container image
 
-**C. Build on the node** (needs Docker):
-
-```bash
-./scripts/build-local.sh
-```
+The LabBot image `ghcr.io/togarhugo/cisco-ai-defense-lab:<version>` is public; nothing to do.
+Do **not** create a `ghcr-pull` secret with a placeholder token, because a wrong credential can break the pull.
+(Offline alternative, needs Docker on the node: `./scripts/build-local.sh`.)
 
 ## 7. Deploy
 
@@ -136,13 +123,20 @@ kubectl -n ai-defense-lab get pods
 
 ## 8. Verify each hop
 
-**a. Pods can reach the internet** (the most common on-prem blocker is a proxy or firewall):
+**a. Pods can resolve and reach the internet** (the most common on-prem blockers are DNS, proxy or firewall).
+This reads your gateway host from the secret:
 
 ```bash
-kubectl -n ai-defense-lab exec deploy/labbot -- python -c "import httpx;print(httpx.get('https://gateway.aidefense.cisco.com').status_code, httpx.get('https://api.anthropic.com').status_code)"
+GW=$(kubectl -n ai-defense-lab get secret lab-secrets -o jsonpath='{.data.AIDEFENSE_GATEWAY_URL}' | base64 -d | cut -d/ -f3)
+kubectl -n ai-defense-lab exec deploy/labbot -- python -c "
+import httpx,sys
+for u in ['https://'+sys.argv[1], 'https://api.anthropic.com']:
+    try: print('OK  ', u, httpx.get(u, timeout=10).status_code)
+    except Exception as e: print('FAIL', u, e)" "$GW"
 ```
 
-Any HTTP status code (even 404) is fine; a timeout or DNS error means egress is blocked. Behind a
+Any HTTP status code (even 403/404) is fine. `Name or service not known` = DNS problem (see
+*DNS problems* below); a timeout = firewall/proxy. Behind a
 corporate proxy, add `HTTPS_PROXY` and `NO_PROXY` (include `litellm,.svc,.cluster.local`) env vars to both Deployments.
 
 **b. LiteLLM → AI Defense gateway → Claude**, without LabBot:
@@ -206,7 +200,8 @@ cd ~/cisco-ai-defense-lab && ./scripts/deploy.sh
 
 | Symptom | Fix |
 |---|---|
-| `ImagePullBackOff` on labbot | Step 6, or the GitHub Action for that version hasn't finished yet (Kubernetes retries automatically) |
+| `ImagePullBackOff` on labbot | The GitHub Action for that version hasn't finished yet (Kubernetes retries automatically), or a bad `ghcr-pull` secret exists: `kubectl -n ai-defense-lab delete secret ghcr-pull` |
+| `Name or service not known` for the gateway | DNS, see *DNS problems* |
 | litellm pod `CreateContainerConfigError` | A key is missing from `lab-secrets` (step 5), e.g. `AIDEFENSE_GATEWAY_URL` |
 | Every prompt shows **BLOCKED (gateway)**, with 400/404 in the message | Wrong gateway URL. Copy it again from the dashboard, without `/v1/messages` |
 | `AI gateway error 401` | The Anthropic key was rejected (the gateway passes it to Anthropic), or the LiteLLM key doesn't match |
@@ -214,6 +209,27 @@ cd ~/cisco-ai-defense-lab && ./scripts/deploy.sh
 | `Cannot reach the LiteLLM gateway` | `kubectl -n ai-defense-lab get pods`: litellm not Ready yet |
 | Timeouts | Egress/proxy (step 8a) |
 | litellm pod `OOMKilled` | Raise its memory limit in `k8s/litellm.yaml` |
+
+### DNS problems
+
+Pods use CoreDNS, which by default forwards to the node's DNS server. If that server can't resolve
+`*.aidefense.security.cisco.com` (common with lab/corporate DNS servers), point CoreDNS at a public
+resolver that your firewall allows. This changes only the cluster, not Ubuntu's DNS:
+
+```bash
+kubectl -n kube-system get configmap coredns -o yaml > ~/coredns-backup.yaml
+```
+
+```bash
+kubectl -n kube-system get configmap coredns -o yaml \
+  | sed 's#forward \. /etc/resolv.conf#forward . 1.1.1.1 1.0.0.1#' | kubectl apply -f -
+```
+
+```bash
+kubectl -n kube-system rollout restart deploy/coredns
+```
+
+Undo: `kubectl apply -f ~/coredns-backup.yaml && kubectl -n kube-system rollout restart deploy/coredns`.
 
 After changing a secret:
 

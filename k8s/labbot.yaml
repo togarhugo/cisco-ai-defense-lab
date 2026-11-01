@@ -11,8 +11,6 @@ spec:
     metadata:
       labels: {app: labbot}
     spec:
-      imagePullSecrets:
-        - name: ghcr-pull          # only needed if the GHCR package is private
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
