@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ai-defense-lab
+resources:
+  - namespace.yaml
+  - litellm-config.yaml
+  - litellm.yaml
+  - labbot-config.yaml
+  - labbot.yaml
+images:
+  - name: ghcr.io/togarhugo/cisco-ai-defense-lab
+    newTag: "1.0.0"   # bumped automatically by scripts/release.sh

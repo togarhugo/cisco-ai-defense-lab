@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: labbot-config
+data:
+  # enforce | monitor | off
+  AIDEFENSE_MODE: "enforce"
+  # US: us.api.inspect...  EU: eu.api.inspect...  APAC: ap.api.inspect...
+  AIDEFENSE_BASE_URL: "https://us.api.inspect.aidefense.security.cisco.com"
+  AIDEFENSE_CHAT_PATH: "/api/v1/inspect/chat"
+  AIDEFENSE_FAIL_OPEN: "false"
+  AIDEFENSE_INSPECT_RESPONSE: "true"
+  LLM_BASE_URL: "http://litellm:4000"
+  LLM_MODEL: "claude-chat"
+  LLM_MAX_TOKENS: "16000"

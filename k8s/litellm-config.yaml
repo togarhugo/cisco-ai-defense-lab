@@ -1,0 +1,22 @@
+# LiteLLM AI gateway config. "claude-chat" is the alias LabBot asks for;
+# LiteLLM maps it to the real Claude model and injects the real Anthropic key.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: litellm-config
+data:
+  config.yaml: |
+    model_list:
+      - model_name: claude-chat
+        litellm_params:
+          model: anthropic/claude-opus-5-5
+          api_key: os.environ/ANTHROPIC_API_KEY
+      - model_name: claude-fast
+        litellm_params:
+          model: anthropic/claude-haiku-5-5
+          api_key: os.environ/ANTHROPIC_API_KEY
+    litellm_settings:
+      drop_params: true
+      request_timeout: 120
+    general_settings:
+      master_key: os.environ/LITELLM_MASTER_KEY

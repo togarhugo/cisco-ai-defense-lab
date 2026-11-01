@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: labbot
+  labels: {app: labbot}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: labbot}
+  template:
+    metadata:
+      labels: {app: labbot}
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull          # only needed if the GHCR package is private
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: labbot
+          image: ghcr.io/togarhugo/cisco-ai-defense-lab   # tag is set by kustomization.yaml
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef: {name: labbot-config}
+          env:
+            - name: AIDEFENSE_API_KEY
+              valueFrom: {secretKeyRef: {name: lab-secrets, key: AIDEFENSE_API_KEY}}
+            - name: LLM_API_KEY
+              valueFrom: {secretKeyRef: {name: lab-secrets, key: LITELLM_MASTER_KEY}}
+          readinessProbe:
+            httpGet: {path: /healthz, port: 8080}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8080}
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {memory: 512Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: labbot
+spec:
+  type: NodePort
+  selector: {app: labbot}
+  ports:
+    - port: 80
+      targetPort: 8080
+      nodePort: 30080
