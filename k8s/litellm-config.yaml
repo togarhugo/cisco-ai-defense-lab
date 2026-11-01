@@ -1,6 +1,8 @@
-# LiteLLM AI gateway config.
-#   claude-chat   -> through the Cisco AI Defense GATEWAY (protected)  <- LabBot default
-#   claude-direct -> straight to api.anthropic.com (UNPROTECTED baseline for comparison)
+# LiteLLM AI gateway config. Aliases (LabBot picks one with LLM_MODEL in labbot-config.yaml):
+#   claude-haiku         Haiku 5.5 via Cisco AI Defense GATEWAY  (cheapest)  <- LabBot default
+#   claude-chat          Opus 5.5  via Cisco AI Defense GATEWAY  (most capable)
+#   claude-haiku-direct  Haiku 5.5 straight to api.anthropic.com (UNPROTECTED baseline)
+#   claude-direct        Opus 5.5  straight to api.anthropic.com (UNPROTECTED baseline)
 # LiteLLM appends /v1/messages to api_base, so AIDEFENSE_GATEWAY_URL is the connection URL
 # exactly as shown in the AI Defense dashboard, e.g.
 #   https://gateway.aidefense.cisco.com/<tenant-id>/connections/<connection-id>
@@ -11,6 +13,15 @@ metadata:
 data:
   config.yaml: |
     model_list:
+      - model_name: claude-haiku
+        litellm_params:
+          model: anthropic/claude-haiku-5-5
+          api_base: os.environ/AIDEFENSE_GATEWAY_URL
+          api_key: os.environ/ANTHROPIC_API_KEY
+      - model_name: claude-haiku-direct
+        litellm_params:
+          model: anthropic/claude-haiku-5-5
+          api_key: os.environ/ANTHROPIC_API_KEY
       - model_name: claude-chat
         litellm_params:
           model: anthropic/claude-opus-5-5

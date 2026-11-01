@@ -2,6 +2,14 @@
 
 All notable changes to this project. Versions follow [SemVer](https://semver.org): MAJOR.MINOR.PATCH.
 
+## [1.2.0] - 2026-11-01
+### Added
+- LiteLLM aliases `claude-haiku` (Claude Haiku 5.5 via AI Defense gateway) and
+  `claude-haiku-direct` (unprotected baseline).
+### Changed
+- Default model is now `claude-haiku` (cheapest: $0.10 / $0.50 per 1M input/output tokens).
+  Switch back to Opus with `LLM_MODEL: "claude-chat"` in `k8s/labbot-config.yaml`.
+
 ## [1.1.2] - 2026-11-01
 ### Fixed
 - Gateway mode: AI Defense blocks were shown as a normal chatbot answer. The gateway returns a

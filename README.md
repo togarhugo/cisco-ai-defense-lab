@@ -23,14 +23,16 @@ Claude without being inspected.
 | `labbot` | k8s Deployment, NodePort **30080** | Chat UI + API. Calls LiteLLM only |
 | `litellm` | k8s Deployment, ClusterIP :4000 | AI gateway. Holds the Anthropic key, sends Claude traffic to the AI Defense gateway URL |
 | AI Defense gateway | Cisco cloud | Inline inspection, allow/block, events in the dashboard |
-| Claude | Anthropic cloud | The LLM (`claude-opus-5-5`) |
+| Claude | Anthropic cloud | The LLM (`claude-haiku-5-5` by default, `claude-opus-5-5` optional) |
 
-LiteLLM model aliases:
+LiteLLM model aliases (choose with `LLM_MODEL` in `k8s/labbot-config.yaml`):
 
-| Alias | Path | Use |
-|---|---|---|
-| `claude-chat` | LiteLLM → **AI Defense gateway** → Claude | Protected (default) |
-| `claude-direct` | LiteLLM → Claude | **Unprotected** baseline, to show the difference |
+| Alias | Model | Path | Price (input / output per 1M tokens) |
+|---|---|---|---|
+| `claude-haiku` (default) | Claude Haiku 5.5 | LiteLLM → **AI Defense gateway** → Claude | $0.10 / $0.50 (cheapest) |
+| `claude-chat` | Claude Opus 5.5 | LiteLLM → **AI Defense gateway** → Claude | $4 / $20 (most capable) |
+| `claude-haiku-direct` | Claude Haiku 5.5 | LiteLLM → Claude, **unprotected** | baseline for comparison |
+| `claude-direct` | Claude Opus 5.5 | LiteLLM → Claude, **unprotected** | baseline for comparison |
 
 ---
 
@@ -146,7 +148,7 @@ MK=$(kubectl -n ai-defense-lab get secret lab-secrets -o jsonpath='{.data.LITELL
 kubectl -n ai-defense-lab exec deploy/labbot -- python -c "
 import httpx,sys
 r=httpx.post('http://litellm:4000/v1/messages',headers={'x-api-key':sys.argv[1]},timeout=120,
-  json={'model':'claude-chat','max_tokens':200,'messages':[{'role':'user','content':'Say hello'}]})
+  json={'model':'claude-haiku','max_tokens':200,'messages':[{'role':'user','content':'Say hello'}]})
 print(r.status_code, r.text[:400])" "$MK"
 ```
 
@@ -182,7 +184,7 @@ the matched rules. HTTP errors from the gateway are **setup problems**, such as 
 or a wrong URL, and appear in the chat as `Error: AI gateway error …`.
 Details per request are in the AI Defense dashboard → *Events*.
 
-**Compare with an unprotected baseline:** set `LLM_MODEL: "claude-direct"` and `AIDEFENSE_MODE: "off"`
+**Compare with an unprotected baseline:** set `LLM_MODEL: "claude-haiku-direct"` and `AIDEFENSE_MODE: "off"`
 in `k8s/labbot-config.yaml`, then run `./scripts/deploy.sh`. Send the same prompts, then switch back.
 
 ## 10. Updating (pull new versions)
@@ -198,9 +200,9 @@ cd ~/cisco-ai-defense-lab && ./scripts/deploy.sh
 | Setting | Default | Where |
 |---|---|---|
 | `AIDEFENSE_MODE` | `gateway` | ConfigMap `labbot-config` |
-| `LLM_MODEL` | `claude-chat` (via AI Defense gateway) | ConfigMap `labbot-config` |
+| `LLM_MODEL` | `claude-haiku` (Haiku 5.5 via AI Defense gateway) | ConfigMap `labbot-config` |
 | `LLM_BASE_URL` | `http://litellm:4000` | ConfigMap `labbot-config` |
-| Claude model behind the aliases | `anthropic/claude-opus-5-5` | ConfigMap `litellm-config` |
+| Claude models behind the aliases | `anthropic/claude-haiku-5-5`, `anthropic/claude-opus-5-5` | ConfigMap `litellm-config` |
 | `ANTHROPIC_API_KEY`, `AIDEFENSE_GATEWAY_URL`, `LITELLM_MASTER_KEY` | – | Secret `lab-secrets` |
 
 ## Troubleshooting
@@ -266,7 +268,7 @@ kubectl -n ai-defense-lab patch secret lab-secrets -p "{\"stringData\":{\"AIDEFE
 
    If you never had a gateway URL, the secret still needs the key (LiteLLM reads it at startup).
    Use a placeholder such as `--from-literal=AIDEFENSE_GATEWAY_URL='https://example.invalid'`.
-3. In `k8s/labbot-config.yaml` set `AIDEFENSE_MODE: "enforce"` (or `monitor`), `LLM_MODEL: "claude-direct"`,
+3. In `k8s/labbot-config.yaml` set `AIDEFENSE_MODE: "enforce"` (or `monitor`), `LLM_MODEL: "claude-haiku-direct"`,
    and `AIDEFENSE_BASE_URL` for your region (`us.` / `eu.` / `ap.api.inspect.aidefense.security.cisco.com`).
 4. Deploy:
 

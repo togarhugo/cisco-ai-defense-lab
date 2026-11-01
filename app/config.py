@@ -16,7 +16,7 @@ class Settings:
     # /v1/messages endpoint, and LiteLLM holds the real ANTHROPIC_API_KEY.
     llm_base_url: str = field(default_factory=lambda: os.getenv("LLM_BASE_URL", "http://litellm:4000"))
     llm_api_key: str = field(default_factory=lambda: os.getenv("LLM_API_KEY", ""))  # LiteLLM key
-    llm_model: str = field(default_factory=lambda: os.getenv("LLM_MODEL", "claude-chat"))  # LiteLLM alias
+    llm_model: str = field(default_factory=lambda: os.getenv("LLM_MODEL", "claude-haiku"))  # LiteLLM alias
     llm_max_tokens: int = field(default_factory=lambda: int(os.getenv("LLM_MAX_TOKENS", "16000")))
     llm_timeout: float = field(default_factory=lambda: float(os.getenv("LLM_TIMEOUT", "120")))
     system_prompt: str = field(default_factory=lambda: os.getenv(

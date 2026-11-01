@@ -2,7 +2,7 @@
 
 LiteLLM exposes an Anthropic-compatible /v1/messages endpoint, so the app uses the
 official Anthropic SDK with base_url = LiteLLM and api_key = a LiteLLM key.
-LiteLLM maps the alias (LLM_MODEL, e.g. "claude-chat") to the real Claude model.
+LiteLLM maps the alias (LLM_MODEL, e.g. "claude-haiku") to the real Claude model.
 """
 import logging
 from dataclasses import dataclass

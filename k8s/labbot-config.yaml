@@ -8,9 +8,11 @@ data:
   # off      = no AI Defense from the app (use with LLM_MODEL=claude-direct for a baseline)
   AIDEFENSE_MODE: "gateway"
 
-  # LiteLLM alias: claude-chat = via AI Defense gateway, claude-direct = unprotected
+  # LiteLLM alias (see litellm-config.yaml):
+  #   claude-haiku (cheapest, via AI Defense) | claude-chat (Opus, via AI Defense)
+  #   claude-haiku-direct / claude-direct     (UNPROTECTED baselines)
   LLM_BASE_URL: "http://litellm:4000"
-  LLM_MODEL: "claude-chat"
+  LLM_MODEL: "claude-haiku"
   LLM_MAX_TOKENS: "16000"
 
   # Gateway mode: AI Defense returns blocks as HTTP 200 text like
