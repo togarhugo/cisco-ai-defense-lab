@@ -3,13 +3,14 @@
 ## How versions work
 
 - Every update gets a version `MAJOR.MINOR.PATCH` (e.g. `1.0.0` → `1.1.0`), stored in `VERSION`.
-- Each release is a git tag `vX.Y.Z` plus an entry in `CHANGELOG.md`.
+- Each release is an entry in `CHANGELOG.md` plus a git tag `vX.Y.Z`, which GitHub Actions
+  creates automatically once the image for that version has built successfully.
 - `k8s/kustomization.yaml` pins the image tag to the same version, so **the git version you
   check out = the container version that runs**.
 - On every push, GitHub Actions runs the tests and builds `ghcr.io/togarhugo/cisco-ai-defense-lab:<version>`.
 
 ```
- You ask for a change ─> Claude commits + tags vX.Y.Z + pushes ─> GitHub Actions builds image :X.Y.Z
+ You ask for a change ─> Claude bumps VERSION + pushes ─> GitHub Actions: tests, image :X.Y.Z, tag vX.Y.Z
                                                                           │
  Ubuntu node:  ./scripts/deploy.sh ── git pull ── kubectl apply -k ───────┘ pulls image :X.Y.Z
 ```
@@ -74,5 +75,5 @@ Better: ask Claude for the change, so it's versioned in the repo and your node d
 ./scripts/release.sh 1.1.0 "Add PII demo prompts"
 ```
 
-This bumps `VERSION`, updates the image tag in `k8s/kustomization.yaml`, commits, tags `v1.1.0`,
-and pushes `main` plus the tag. `CHANGELOG.md` is updated in the same commit.
+This bumps `VERSION`, updates the image tag in `k8s/kustomization.yaml`, commits and pushes `main`.
+`CHANGELOG.md` is updated in the same commit. GitHub Actions then builds the image and creates the tag `v1.1.0`.

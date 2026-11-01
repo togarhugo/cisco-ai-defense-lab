@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Maintainer script: bump the version, update the Kubernetes image tag, commit, tag, push.
+# Maintainer script: bump the version, update the Kubernetes image tag, commit, push.
+# GitHub Actions then builds image :X.Y.Z and creates the git tag vX.Y.Z automatically.
 #   ./scripts/release.sh 1.1.0 "Short description of the change"
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -10,6 +11,4 @@ echo "$NEW" > VERSION
 sed -i -E "s/(newTag: \")[^\"]+(\")/\1${NEW}\2/" k8s/kustomization.yaml
 git add -A
 git commit -m "release: v${NEW} - ${MSG}"
-git tag -a "v${NEW}" -m "${MSG}"
 git push origin HEAD:main
-git push origin "v${NEW}"

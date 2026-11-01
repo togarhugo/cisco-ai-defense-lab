@@ -2,6 +2,11 @@
 
 All notable changes to this project. Versions follow [SemVer](https://semver.org): MAJOR.MINOR.PATCH.
 
+## [1.0.1] - 2026-11-01
+### Changed
+- GitHub Actions now creates the `vX.Y.Z` git tag automatically after a successful build on `main`
+  (tags no longer need to be pushed by hand).
+
 ## [1.0.0] - 2026-11-01
 ### Added
 - LabBot chatbot (FastAPI + web UI) with live AI Defense verdict panel.
