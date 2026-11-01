@@ -2,6 +2,20 @@
 
 All notable changes to this project. Versions follow [SemVer](https://semver.org): MAJOR.MINOR.PATCH.
 
+## [1.1.0] - 2026-11-01
+### Added
+- **AI Defense gateway mode** (new default, `AIDEFENSE_MODE=gateway`):
+  LabBot → LiteLLM → Cisco AI Defense gateway → Claude. LiteLLM uses the gateway connection URL
+  (`AIDEFENSE_GATEWAY_URL` secret) as the upstream for Claude.
+- LiteLLM alias `claude-direct` (bypasses AI Defense) for unprotected baseline comparisons.
+- Gateway rejections (HTTP 400/403/406/422/451) are shown in the UI as *BLOCKED (gateway)* with
+  the gateway's message.
+### Changed
+- `AIDEFENSE_API_KEY` is now optional (only used in API mode).
+- README rewritten for gateway mode; API mode kept as an alternative.
+### Removed
+- `claude-fast` LiteLLM alias.
+
 ## [1.0.1] - 2026-11-01
 ### Changed
 - GitHub Actions now creates the `vX.Y.Z` git tag automatically after a successful build on `main`

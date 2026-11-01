@@ -1,8 +1,12 @@
-"""LabBot - a minimal chatbot with Cisco AI Defense in front of the AI gateway.
+"""LabBot - a minimal chatbot protected by Cisco AI Defense.
 
-  User -> LabBot --(1) prompt inspection---> Cisco AI Defense (allow/block)
-                 --(2) if allowed ---------> LiteLLM gateway --> Claude API
-                 --(3) response inspection-> Cisco AI Defense (allow/block) -> User
+Gateway mode (default):
+  User -> LabBot -> LiteLLM -> Cisco AI Defense gateway (inline allow/block) -> Claude API
+
+API mode (enforce/monitor):
+  User -> LabBot --(1) prompt inspection---> Cisco AI Defense Inspection API
+                 --(2) if allowed ---------> LiteLLM -> Claude API
+                 --(3) response inspection-> Cisco AI Defense Inspection API -> User
 """
 import logging
 import time
@@ -27,6 +31,10 @@ log = logging.getLogger("labbot")
 STATIC = Path(__file__).parent / "static"
 BLOCK_PROMPT_MSG = "Your message was blocked by Cisco AI Defense security policy."
 BLOCK_RESPONSE_MSG = "The assistant's response was blocked by Cisco AI Defense security policy."
+BLOCK_GATEWAY_MSG = "Request rejected by the AI Defense gateway (most likely a security policy block)."
+# Statuses we treat as a policy rejection by the gateway in gateway mode. 401 (bad key) and
+# 429 (rate limit) are reported as normal errors instead.
+GATEWAY_BLOCK_STATUSES = {400, 403, 406, 422, 451}
 
 
 class Message(BaseModel):
@@ -82,7 +90,8 @@ async def chat(req: ChatRequest, request: Request):
     convo = [m.model_dump() for m in req.messages]
     meta = {"src_app": "labbot", "client_transaction_id": rid}
     out = {"request_id": rid, "mode": settings.aidefense_mode, "blocked": False, "blocked_stage": None,
-           "prompt_inspection": None, "response_inspection": None, "reply": None, "model": None}
+           "prompt_inspection": None, "response_inspection": None, "gateway_error": None,
+           "reply": None, "model": None}
 
     # (1) Inspect the prompt before it reaches Claude
     p = await aid.inspect("prompt", convo, meta)
@@ -100,7 +109,13 @@ async def chat(req: ChatRequest, request: Request):
     except anthropic.RateLimitError:
         raise HTTPException(429, "Rate limited by gateway or Claude - try again shortly")
     except anthropic.APIStatusError as e:
-        raise HTTPException(502, f"AI gateway error {e.status_code}: {str(e.message)[:300]}")
+        detail = str(e.message)[:500]
+        if settings.aidefense_mode == "gateway" and e.status_code in GATEWAY_BLOCK_STATUSES:
+            out.update(blocked=True, blocked_stage="gateway", reply=BLOCK_GATEWAY_MSG,
+                       gateway_error=f"HTTP {e.status_code}: {detail}")
+            log.info("rid=%s REJECTED by gateway: HTTP %s %s", rid, e.status_code, detail)
+            return out
+        raise HTTPException(502, f"AI gateway error {e.status_code}: {detail}")
     except anthropic.APIConnectionError:
         raise HTTPException(502, "Cannot reach the LiteLLM gateway - check the litellm Service/pod")
     out["model"] = r.model

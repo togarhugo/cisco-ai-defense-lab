@@ -37,11 +37,11 @@
   <h1>LabBot</h1>
   <span class="pill" id="ver">v?</span>
   <span class="pill" id="mode">AI Defense: ?</span>
-  <span class="flow">App → Cisco AI Defense → LiteLLM → Claude</span>
+  <span class="flow" id="flow"></span>
 </header>
 <main>
   <section id="chat"></section>
-  <aside id="log"><strong>AI Defense verdicts</strong><p class="muted">Each turn shows the prompt and response inspection results.</p></aside>
+  <aside id="log"><strong>AI Defense verdicts</strong><p class="muted">Each turn shows what AI Defense decided.</p></aside>
 </main>
 <form id="f">
   <textarea id="q" placeholder="Ask something... (try a prompt injection to test AI Defense)"></textarea>
@@ -56,6 +56,9 @@ let history = [];
 fetch('/api/info').then(r => r.json()).then(i => {
   document.getElementById('ver').textContent = 'v' + i.version;
   document.getElementById('mode').textContent = 'AI Defense: ' + i.aidefense_mode;
+  document.getElementById('flow').textContent = i.aidefense_mode === 'gateway'
+    ? 'App → LiteLLM → Cisco AI Defense gateway → Claude'
+    : 'App → Cisco AI Defense (API) → LiteLLM → Claude';
 });
 
 function bubble(text, cls) {
@@ -95,9 +98,12 @@ f.addEventListener('submit', async e => {
       history.push({role: 'assistant', content: data.reply});
     }
     const c = document.createElement('div'); c.className = 'card';
-    c.innerHTML = `<div class="muted">${esc(text.slice(0, 60))}</div>
-                   <div>Prompt: ${verdict(data.prompt_inspection)}</div>
-                   <div>Response: ${verdict(data.response_inspection)}</div>
+    const body = data.mode === 'gateway'
+      ? `<div>Gateway: ${data.blocked ? '<span class="bad">BLOCKED</span>' : '<span class="ok">ALLOWED</span>'}
+           <span class="muted">${esc(data.gateway_error || 'inspected inline by AI Defense gateway')}</span></div>`
+      : `<div>Prompt: ${verdict(data.prompt_inspection)}</div>
+         <div>Response: ${verdict(data.response_inspection)}</div>`;
+    c.innerHTML = `<div class="muted">${esc(text.slice(0, 60))}</div>${body}
                    <div class="muted">id ${data.request_id.slice(0, 8)}</div>`;
     logEl.appendChild(c); logEl.scrollTop = logEl.scrollHeight;
   } catch (err) {

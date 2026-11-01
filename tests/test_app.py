@@ -73,3 +73,38 @@ def test_aidefense_down_fails_closed():
     llm = app.state.llm
     assert r["blocked"] and r["prompt_inspection"]["error"].startswith("HTTP 503")
     assert llm.calls == []
+
+
+def _gateway_mode(monkeypatch, c):
+    import dataclasses
+    import app.main as m
+    gw = dataclasses.replace(m.settings, aidefense_mode="gateway")
+    monkeypatch.setattr(m, "settings", gw)
+    app.state.aid.s = gw
+
+
+@respx.mock
+def test_gateway_mode_makes_no_inspection_calls(monkeypatch):
+    aid = respx.post(AID).mock(return_value=httpx.Response(200, json=SAFE))
+    c = client()
+    _gateway_mode(monkeypatch, c)
+    r = c.post("/api/chat", json=BODY).json()
+    assert r["mode"] == "gateway" and r["blocked"] is False and r["reply"] == "Hello from Claude"
+    assert not aid.called
+
+
+def test_gateway_block_is_reported(monkeypatch):
+    import anthropic
+    import httpx2
+
+    class BlockingLLM:
+        async def chat(self, messages):
+            resp = httpx2.Response(403, request=httpx2.Request("POST", "http://litellm:4000/v1/messages"))
+            raise anthropic.PermissionDeniedError("Request blocked by Cisco AI Defense", response=resp, body=None)
+
+    c = client()
+    _gateway_mode(monkeypatch, c)
+    app.state.llm = BlockingLLM()
+    r = c.post("/api/chat", json=BODY).json()
+    assert r["blocked"] and r["blocked_stage"] == "gateway"
+    assert "HTTP 403" in r["gateway_error"] and "Cisco AI Defense" in r["gateway_error"]

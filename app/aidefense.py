@@ -1,4 +1,4 @@
-"""Client for the Cisco AI Defense Chat Inspection API.
+"""Client for the Cisco AI Defense Chat Inspection API (used in API mode only).
 
 Docs: https://developer.cisco.com/docs/ai-defense-inspection/
 The app calls AI Defense twice per turn:
@@ -43,7 +43,8 @@ class AIDefenseClient:
 
     async def inspect(self, stage: str, messages: list[dict[str, str]], metadata: dict | None = None) -> InspectionResult:
         mode = self.s.aidefense_mode
-        if mode == "off":
+        if mode in ("off", "gateway"):
+            # gateway mode: inspection happens inline in the AI Defense gateway, not here
             return InspectionResult(stage=stage, inspected=False)
 
         body: dict[str, Any] = {"messages": messages}

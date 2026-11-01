@@ -1,5 +1,9 @@
-# LiteLLM AI gateway config. "claude-chat" is the alias LabBot asks for;
-# LiteLLM maps it to the real Claude model and injects the real Anthropic key.
+# LiteLLM AI gateway config.
+#   claude-chat   -> through the Cisco AI Defense GATEWAY (protected)  <- LabBot default
+#   claude-direct -> straight to api.anthropic.com (UNPROTECTED baseline for comparison)
+# LiteLLM appends /v1/messages to api_base, so AIDEFENSE_GATEWAY_URL is the connection URL
+# exactly as shown in the AI Defense dashboard, e.g.
+#   https://gateway.aidefense.cisco.com/<tenant-id>/connections/<connection-id>
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -10,10 +14,11 @@ data:
       - model_name: claude-chat
         litellm_params:
           model: anthropic/claude-opus-5-5
+          api_base: os.environ/AIDEFENSE_GATEWAY_URL
           api_key: os.environ/ANTHROPIC_API_KEY
-      - model_name: claude-fast
+      - model_name: claude-direct
         litellm_params:
-          model: anthropic/claude-haiku-5-5
+          model: anthropic/claude-opus-5-5
           api_key: os.environ/ANTHROPIC_API_KEY
     litellm_settings:
       drop_params: true

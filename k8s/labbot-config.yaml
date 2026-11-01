@@ -3,13 +3,18 @@ kind: ConfigMap
 metadata:
   name: labbot-config
 data:
-  # enforce | monitor | off
-  AIDEFENSE_MODE: "enforce"
-  # US: us.api.inspect...  EU: eu.api.inspect...  APAC: ap.api.inspect...
+  # gateway  = AI Defense gateway mode (inline, configured in LiteLLM)          <- default
+  # enforce  = AI Defense API mode, block      | monitor = API mode, never block
+  # off      = no AI Defense from the app (use with LLM_MODEL=claude-direct for a baseline)
+  AIDEFENSE_MODE: "gateway"
+
+  # LiteLLM alias: claude-chat = via AI Defense gateway, claude-direct = unprotected
+  LLM_BASE_URL: "http://litellm:4000"
+  LLM_MODEL: "claude-chat"
+  LLM_MAX_TOKENS: "16000"
+
+  # --- API mode only (ignored in gateway mode) ---
   AIDEFENSE_BASE_URL: "https://us.api.inspect.aidefense.security.cisco.com"
   AIDEFENSE_CHAT_PATH: "/api/v1/inspect/chat"
   AIDEFENSE_FAIL_OPEN: "false"
   AIDEFENSE_INSPECT_RESPONSE: "true"
-  LLM_BASE_URL: "http://litellm:4000"
-  LLM_MODEL: "claude-chat"
-  LLM_MAX_TOKENS: "16000"

@@ -26,7 +26,8 @@ spec:
             - configMapRef: {name: labbot-config}
           env:
             - name: AIDEFENSE_API_KEY
-              valueFrom: {secretKeyRef: {name: lab-secrets, key: AIDEFENSE_API_KEY}}
+              # only used in API mode (enforce/monitor); optional in gateway mode
+              valueFrom: {secretKeyRef: {name: lab-secrets, key: AIDEFENSE_API_KEY, optional: true}}
             - name: LLM_API_KEY
               valueFrom: {secretKeyRef: {name: lab-secrets, key: LITELLM_MASTER_KEY}}
           readinessProbe:
