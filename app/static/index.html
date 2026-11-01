@@ -98,9 +98,13 @@ f.addEventListener('submit', async e => {
       history.push({role: 'assistant', content: data.reply});
     }
     const c = document.createElement('div'); c.className = 'card';
+    const gv = data.gateway_verdict;
     const body = data.mode === 'gateway'
-      ? `<div>Gateway: ${data.blocked ? '<span class="bad">BLOCKED</span>' : '<span class="ok">ALLOWED</span>'}
-           <span class="muted">${esc(data.gateway_error || 'inspected inline by AI Defense gateway')}</span></div>`
+      ? (gv
+          ? `<div>Gateway: <span class="bad">BLOCKED (${esc(gv.stage)})</span></div>
+             <div class="muted">rules: ${esc(gv.rules.join(', ') || 'n/a')}</div>
+             <div class="muted">${esc(gv.verdict)}</div>`
+          : `<div>Gateway: <span class="ok">ALLOWED</span> <span class="muted">inspected inline by AI Defense</span></div>`)
       : `<div>Prompt: ${verdict(data.prompt_inspection)}</div>
          <div>Response: ${verdict(data.response_inspection)}</div>`;
     c.innerHTML = `<div class="muted">${esc(text.slice(0, 60))}</div>${body}

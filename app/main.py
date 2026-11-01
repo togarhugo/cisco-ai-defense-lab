@@ -9,6 +9,7 @@ API mode (enforce/monitor):
                  --(3) response inspection-> Cisco AI Defense Inspection API -> User
 """
 import logging
+import re
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -31,10 +32,20 @@ log = logging.getLogger("labbot")
 STATIC = Path(__file__).parent / "static"
 BLOCK_PROMPT_MSG = "Your message was blocked by Cisco AI Defense security policy."
 BLOCK_RESPONSE_MSG = "The assistant's response was blocked by Cisco AI Defense security policy."
-BLOCK_GATEWAY_MSG = "Request rejected by the AI Defense gateway (most likely a security policy block)."
-# Statuses we treat as a policy rejection by the gateway in gateway mode. 401 (bad key) and
-# 429 (rate limit) are reported as normal errors instead.
-GATEWAY_BLOCK_STATUSES = {400, 403, 406, 422, 451}
+BLOCK_GATEWAY_PROMPT_MSG = "Your message was blocked by the Cisco AI Defense gateway."
+BLOCK_GATEWAY_RESPONSE_MSG = "The assistant's response was blocked by the Cisco AI Defense gateway."
+GATEWAY_BLOCK_RE = re.compile(settings.aidefense_gateway_block_pattern, re.IGNORECASE | re.DOTALL)
+
+
+def parse_gateway_block(text: str) -> dict | None:
+    """Recognise an AI Defense gateway verdict returned as a normal (HTTP 200) message."""
+    m = GATEWAY_BLOCK_RE.match(text or "")
+    if not m:
+        return None
+    gd = m.groupdict()
+    stage = "response" if (gd.get("stage") or "").lower() == "response" else "prompt"
+    rules = [r.strip() for r in (gd.get("rules") or "").split(",") if r.strip()]
+    return {"stage": stage, "rules": rules, "verdict": text.strip()}
 
 
 class Message(BaseModel):
@@ -90,7 +101,7 @@ async def chat(req: ChatRequest, request: Request):
     convo = [m.model_dump() for m in req.messages]
     meta = {"src_app": "labbot", "client_transaction_id": rid}
     out = {"request_id": rid, "mode": settings.aidefense_mode, "blocked": False, "blocked_stage": None,
-           "prompt_inspection": None, "response_inspection": None, "gateway_error": None,
+           "prompt_inspection": None, "response_inspection": None, "gateway_error": None, "gateway_verdict": None,
            "reply": None, "model": None}
 
     # (1) Inspect the prompt before it reaches Claude
@@ -109,16 +120,24 @@ async def chat(req: ChatRequest, request: Request):
     except anthropic.RateLimitError:
         raise HTTPException(429, "Rate limited by gateway or Claude - try again shortly")
     except anthropic.APIStatusError as e:
+        # In gateway mode, HTTP errors are configuration problems (e.g. "No policies are attached
+        # to the connection", wrong URL), NOT security blocks - those come back as HTTP 200.
         detail = str(e.message)[:500]
-        if settings.aidefense_mode == "gateway" and e.status_code in GATEWAY_BLOCK_STATUSES:
-            out.update(blocked=True, blocked_stage="gateway", reply=BLOCK_GATEWAY_MSG,
-                       gateway_error=f"HTTP {e.status_code}: {detail}")
-            log.info("rid=%s REJECTED by gateway: HTTP %s %s", rid, e.status_code, detail)
-            return out
+        log.warning("rid=%s gateway/LLM error HTTP %s: %s", rid, e.status_code, detail)
         raise HTTPException(502, f"AI gateway error {e.status_code}: {detail}")
     except anthropic.APIConnectionError:
         raise HTTPException(502, "Cannot reach the LiteLLM gateway - check the litellm Service/pod")
     out["model"] = r.model
+
+    # (2b) Gateway mode: AI Defense returns its block verdict as the message text
+    if settings.aidefense_mode == "gateway":
+        verdict = parse_gateway_block(r.text)
+        if verdict:
+            msg = BLOCK_GATEWAY_RESPONSE_MSG if verdict["stage"] == "response" else BLOCK_GATEWAY_PROMPT_MSG
+            out.update(blocked=True, blocked_stage=f"gateway-{verdict['stage']}", reply=msg,
+                       gateway_verdict=verdict)
+            log.info("rid=%s BLOCKED by gateway (%s): %s", rid, verdict["stage"], verdict["rules"])
+            return out
 
     # (3) Inspect Claude's response before it reaches the user
     if settings.aidefense_inspect_response and not r.refused:

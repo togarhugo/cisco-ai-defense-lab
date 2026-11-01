@@ -2,6 +2,16 @@
 
 All notable changes to this project. Versions follow [SemVer](https://semver.org): MAJOR.MINOR.PATCH.
 
+## [1.1.2] - 2026-11-01
+### Fixed
+- Gateway mode: AI Defense blocks were shown as a normal chatbot answer. The gateway returns a
+  block as an HTTP 200 message (`This request violates rules: Prompt Injection`); LabBot now
+  recognises it and shows **BLOCKED (prompt/response)** with the matched rules.
+- Gateway HTTP errors (e.g. `No policies are attached to the connection`) are no longer shown as
+  security blocks; they appear as `AI gateway error …` (configuration problem).
+### Added
+- `AIDEFENSE_GATEWAY_BLOCK_PATTERN` setting to adapt to a different verdict wording.
+
 ## [1.1.1] - 2026-11-01
 ### Fixed
 - README: wrong example gateway host (`gateway.aidefense.cisco.com`) replaced with the real

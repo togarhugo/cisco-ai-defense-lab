@@ -42,6 +42,12 @@ class Settings:
     # If AI Defense is unreachable: fail_open=true lets traffic through, false blocks it.
     aidefense_fail_open: bool = field(default_factory=lambda: _bool("AIDEFENSE_FAIL_OPEN", False))
     aidefense_inspect_response: bool = field(default_factory=lambda: _bool("AIDEFENSE_INSPECT_RESPONSE", True))
+    # Gateway mode: a block comes back as a normal HTTP 200 message whose text is the verdict,
+    # e.g. "This request violates rules: Prompt Injection". This regex recognises it
+    # (groups: stage = request|response, rules = comma-separated rule names).
+    aidefense_gateway_block_pattern: str = field(default_factory=lambda: os.getenv(
+        "AIDEFENSE_GATEWAY_BLOCK_PATTERN",
+        r"^\s*This (?P<stage>request|response|prompt) violates (?:the following )?rules?\s*:\s*(?P<rules>.+?)\s*\.?\s*$"))
 
 
 settings = Settings()
