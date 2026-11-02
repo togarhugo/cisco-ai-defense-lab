@@ -2,6 +2,21 @@
 
 All notable changes to this project. Versions follow [SemVer](https://semver.org): MAJOR.MINOR.PATCH.
 
+## [1.4.0] - 2026-11-02
+### Added
+- **File and image uploads** in the chat (📎, drag and drop, paste): images (PNG/JPEG/GIF/WebP) go to Claude as
+  images; PDF, `.docx` and text/code files are converted to text so AI Defense inspects what Claude reads.
+  File types are detected from bytes; limits: 5 files per message, 5 MB each, 20 MB per chat.
+- **Route selector** in the chat: *Via AI Defense* (`LLM_MODEL`) or *Direct to Claude* (`LLM_MODEL_DIRECT`,
+  AI Defense bypassed), per message. `ALLOW_DIRECT_ROUTE=false` removes the direct option.
+- Verdict panel shows the route, the files read (pages, characters, truncation) and a hint when earlier
+  direct-route messages cause later blocks.
+### Changed
+- labbot memory limit 512Mi -> 1Gi for upload bodies; new dependencies `pypdf`, `python-docx`.
+- Request bodies above about 27 MB are rejected up front (HTTP 413).
+### Fixed
+- README: removed a leftover half-sentence in the test-cases section.
+
 ## [1.3.1] - 2026-11-02
 ### Fixed
 - README: removed an untested claim that the master key also works as the LiteLLM UI password;

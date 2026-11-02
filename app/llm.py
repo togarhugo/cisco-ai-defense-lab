@@ -32,9 +32,10 @@ class GatewayClaudeClient:
             timeout=settings.llm_timeout,
         )
 
-    async def chat(self, messages: list[dict[str, str]]) -> LLMReply:
+    async def chat(self, messages: list[dict], model: str | None = None) -> LLMReply:
+        """messages: Anthropic format; content is a string or a list of content blocks (text/image)."""
         resp = await self.client.messages.create(
-            model=self.s.llm_model,
+            model=model or self.s.llm_model,
             max_tokens=self.s.llm_max_tokens,
             system=self.s.system_prompt,
             messages=messages,

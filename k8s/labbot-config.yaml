@@ -13,6 +13,17 @@ data:
   #   claude-haiku-direct / claude-direct     (UNPROTECTED baselines)
   LLM_BASE_URL: "http://litellm:4000"
   LLM_MODEL: "claude-haiku"
+  # The chat UI lets the user pick per message: protected (LLM_MODEL, through AI Defense) or
+  # direct (LLM_MODEL_DIRECT, straight to Claude, AI Defense bypassed). Set ALLOW_DIRECT_ROUTE to
+  # "false" to remove the direct option.
+  LLM_MODEL_DIRECT: "claude-haiku-direct"
+  ALLOW_DIRECT_ROUTE: "true"
+
+  # File / image uploads
+  MAX_FILE_BYTES: "5242880"                 # 5 MB per file
+  MAX_FILES_PER_MESSAGE: "5"
+  MAX_TOTAL_ATTACHMENT_BYTES: "20971520"    # 20 MB of attachments per chat
+  MAX_FILE_TEXT_CHARS: "100000"             # text extracted from a file is cut after this
   LLM_MAX_TOKENS: "16000"
 
   # Gateway mode: AI Defense returns blocks as HTTP 200 text like

@@ -17,8 +17,20 @@ class Settings:
     llm_base_url: str = field(default_factory=lambda: os.getenv("LLM_BASE_URL", "http://litellm:4000"))
     llm_api_key: str = field(default_factory=lambda: os.getenv("LLM_API_KEY", ""))  # LiteLLM key
     llm_model: str = field(default_factory=lambda: os.getenv("LLM_MODEL", "claude-haiku"))  # LiteLLM alias
+    # "Direct" route chosen in the chat UI: LiteLLM alias that goes straight to Claude (no AI Defense gateway)
+    llm_model_direct: str = field(default_factory=lambda: os.getenv("LLM_MODEL_DIRECT", "claude-haiku-direct"))
+    # Set false to remove the "Direct to Claude" option from the UI and reject it in the API
+    allow_direct_route: bool = field(default_factory=lambda: _bool("ALLOW_DIRECT_ROUTE", True))
     llm_max_tokens: int = field(default_factory=lambda: int(os.getenv("LLM_MAX_TOKENS", "16000")))
     llm_timeout: float = field(default_factory=lambda: float(os.getenv("LLM_TIMEOUT", "120")))
+    # --- File / image uploads ---
+    max_file_bytes: int = field(default_factory=lambda: int(os.getenv("MAX_FILE_BYTES", str(5 * 1024 * 1024))))
+    max_files_per_message: int = field(default_factory=lambda: int(os.getenv("MAX_FILES_PER_MESSAGE", "5")))
+    max_total_attachment_bytes: int = field(default_factory=lambda: int(
+        os.getenv("MAX_TOTAL_ATTACHMENT_BYTES", str(20 * 1024 * 1024))))  # whole conversation
+    max_file_text_chars: int = field(default_factory=lambda: int(os.getenv("MAX_FILE_TEXT_CHARS", "100000")))
+    max_pdf_pages: int = field(default_factory=lambda: int(os.getenv("MAX_PDF_PAGES", "100")))
+
     system_prompt: str = field(default_factory=lambda: os.getenv(
         "SYSTEM_PROMPT",
         "You are LabBot, a helpful internal assistant for the ACME corporate lab. "

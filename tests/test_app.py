@@ -16,9 +16,11 @@ class FakeLLM:
     """Stands in for the LiteLLM gateway (the SDK uses httpx2, which respx can't intercept)."""
     def __init__(self):
         self.calls = []
+        self.models = []
 
-    async def chat(self, messages):
+    async def chat(self, messages, model=None):
         self.calls.append(messages)
+        self.models.append(model)
         return LLMReply("Hello from Claude", "claude-opus-5-5", "end_turn")
 
 
@@ -98,7 +100,7 @@ class TextLLM:
     def __init__(self, text):
         self.text = text
 
-    async def chat(self, messages):
+    async def chat(self, messages, model=None):
         return LLMReply(self.text, "claude-chat", "end_turn")
 
 
@@ -134,7 +136,7 @@ def test_gateway_http_error_is_config_error_not_block(monkeypatch):
     import httpx2
 
     class FailingLLM:
-        async def chat(self, messages):
+        async def chat(self, messages, model=None):
             resp = httpx2.Response(400, request=httpx2.Request("POST", "http://litellm:4000/v1/messages"))
             raise anthropic.BadRequestError("No policies are attached to the connection", response=resp, body=None)
 

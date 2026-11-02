@@ -48,6 +48,16 @@ Rolling back (`./scripts/deploy.sh v1.2.0`) restores the previous LiteLLM; the d
 `litellm-ui` service stay in the cluster, harmless. Remove them with
 `kubectl -n ai-defense-lab delete deploy/litellm-db svc/litellm-db svc/litellm-ui`.
 
+## Upgrading to v1.4.0 (file uploads, route selector)
+
+Nothing special: it only changes LabBot and its ConfigMap, and the existing LiteLLM aliases are reused.
+
+```bash
+cd ~/cisco-ai-defense-lab && ./scripts/deploy.sh
+```
+
+Then hard-refresh the chat page (Ctrl+Shift+R) so the browser loads the new page.
+
 ## See what changed
 
 ```bash

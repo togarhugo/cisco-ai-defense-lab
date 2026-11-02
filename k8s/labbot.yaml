@@ -37,7 +37,7 @@ spec:
             periodSeconds: 20
           resources:
             requests: {cpu: 50m, memory: 128Mi}
-            limits: {memory: 512Mi}
+            limits: {memory: 1Gi}      # uploads: up to ~30 MB request bodies
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
