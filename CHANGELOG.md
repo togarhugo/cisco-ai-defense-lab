@@ -2,6 +2,11 @@
 
 All notable changes to this project. Versions follow [SemVer](https://semver.org): MAJOR.MINOR.PATCH.
 
+## [1.4.1] - 2026-11-02
+### Fixed
+- The chat page is now served with `Cache-Control: no-store`. After an upgrade, browsers could keep showing
+  the previous page (no attach button / route selector) while the version badge already said the new version.
+
 ## [1.4.0] - 2026-11-02
 ### Added
 - **File and image uploads** in the chat (📎, drag and drop, paste): images (PNG/JPEG/GIF/WebP) go to Claude as

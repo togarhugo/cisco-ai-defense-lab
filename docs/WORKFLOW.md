@@ -56,7 +56,7 @@ Nothing special: it only changes LabBot and its ConfigMap, and the existing Lite
 cd ~/cisco-ai-defense-lab && ./scripts/deploy.sh
 ```
 
-Then hard-refresh the chat page (Ctrl+Shift+R) so the browser loads the new page.
+Then hard-refresh the chat page (Ctrl+Shift+R) once. From v1.4.1 on, the page is never cached, so this is no longer needed.
 
 ## See what changed
 

@@ -105,7 +105,8 @@ app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 @app.get("/")
 async def index():
-    return FileResponse(STATIC / "index.html")
+    # never cached: after an upgrade the browser must load the new page, not a stale copy
+    return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-store"})
 
 
 @app.get("/healthz")

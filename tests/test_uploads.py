@@ -244,3 +244,10 @@ def test_info_exposes_limits_and_accept(monkeypatch):
     c = client(monkeypatch)
     i = c.get("/api/info").json()
     assert i["allow_direct"] is True and ".pdf" in i["accept"] and i["limits"]["max_files_per_message"] == 5
+
+
+def test_chat_page_is_not_cacheable(monkeypatch):
+    c = client(monkeypatch)
+    r = c.get("/")
+    assert r.status_code == 200 and r.headers["cache-control"] == "no-store"
+    assert 'id="attach"' in r.text and 'id="route"' in r.text
