@@ -233,7 +233,7 @@ sudo ufw allow from <your-lab-subnet> to any port 30400 proto tcp
 ```
 
 - Anyone with the UI password can create keys and see spend. They cannot see your Anthropic key.
-- The master key still works as the UI login password too. Keep it private.
+- The master key is a separate secret that gives full API access. Keep it private.
 - `LITELLM_SALT_KEY` (in `lab-secrets`) encrypts stored credentials. **Never change or delete it** after the first deploy.
 
 **Reset the database** (deletes all keys, spend and logs; the chatbot is not affected):
@@ -271,7 +271,7 @@ kubectl -n ai-defense-lab scale deploy/litellm-db --replicas=0 && sudo rm -rf /v
 | `litellm-db` pod `ImagePullBackOff` | Docker Hub is blocked. In `k8s/kustomization.yaml` uncomment `newName: public.ecr.aws/docker/library/postgres`, or allow `registry-1.docker.io` |
 | litellm pod stuck in `Init:0/1` | Waiting for the database: `kubectl -n ai-defense-lab get pods` and check `litellm-db` is `1/1`. The old litellm pod keeps serving meanwhile |
 | `deploy.sh` says litellm did not become ready | The previous pod still serves the chatbot. `kubectl -n ai-defense-lab logs deploy/litellm --tail=40` (first start runs ~200 database migrations, allow a few minutes) |
-| UI login fails | Use `admin` + the `UI_PASSWORD` secret (command above). The master key also works as the password |
+| UI login fails (`Invalid credentials`) | Username must be exactly `admin` (clear any browser autofill) and the password is the `UI_PASSWORD` secret (command above). To set a new one: `kubectl -n ai-defense-lab patch secret lab-secrets --type merge -p '{"stringData":{"UI_PASSWORD":"NewPassword"}}'` then `kubectl -n ai-defense-lab rollout restart deploy/litellm` |
 | UI Usage / Logs empty | Only requests that go through LiteLLM after the database was added are recorded. Send a chat message and refresh |
 | UI port not reachable | `sudo ufw status`; allow port 30400 from your subnet |
 

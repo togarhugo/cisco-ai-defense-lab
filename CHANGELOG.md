@@ -2,6 +2,11 @@
 
 All notable changes to this project. Versions follow [SemVer](https://semver.org): MAJOR.MINOR.PATCH.
 
+## [1.3.1] - 2026-11-02
+### Fixed
+- README: removed an untested claim that the master key also works as the LiteLLM UI password;
+  the UI login is `admin` + the `UI_PASSWORD` secret. Added the steps to reset that password.
+
 ## [1.3.0] - 2026-11-01
 ### Added
 - **LiteLLM admin UI** at `http://<ubuntu-ip>:30400/ui` (user `admin`), with usage/spend, request logs
