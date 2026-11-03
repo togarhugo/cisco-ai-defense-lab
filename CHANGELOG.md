@@ -2,6 +2,18 @@
 
 All notable changes to this project. Versions follow [SemVer](https://semver.org): MAJOR.MINOR.PATCH.
 
+## [1.6.5] - 2026-11-05
+### Added
+- **Markdown in the bot's replies** (Chat and Agent): headings, bold, italic, strike, inline code, fenced code blocks with a
+  **Copy** button, bullet and numbered lists (nested), tables, quotes, rules and links.
+- Built with DOM nodes only, because model output is untrusted: raw HTML is shown as text, **images are never loaded** (a remote
+  image URL can leak data, so `![x](url)` becomes "[image not shown]"), only `http(s)` links are made clickable (new tab,
+  `noopener noreferrer`), `javascript:` and `data:` links stay text, and replies over 100,000 characters stay plain text.
+  Pattern limits keep abusive input fast.
+- `tests/browser/markdown.test.js`: browser test of the renderer (hostile input, speed, normal Markdown). Not part of CI.
+### Fixed
+- The side panel said "1 LLM calls"; it now pluralises correctly.
+
 ## [1.6.4] - 2026-11-05
 ### Fixed
 - A tool call stopped because the AI Defense inspection returned an **error** (fail closed) was shown as "BLOCKED by Cisco AI Defense,

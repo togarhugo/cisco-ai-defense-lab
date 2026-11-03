@@ -195,6 +195,13 @@ Details per request are in the AI Defense dashboard → *Events*.
 **Compare with and without AI Defense:** use the **Route** selector at the top right of the chat page
 (see [Choosing the route](#choosing-the-route)). No redeploy needed.
 
+## Markdown in replies
+
+The bot's answers are shown formatted: headings, **bold**, lists, tables, code blocks (with a Copy button), quotes and links.
+Model output is untrusted, so the page never inserts it as HTML: raw HTML is shown as plain text, **images are never loaded**
+(a remote image address can leak data), only `http(s)` links are clickable, and very long replies stay plain text.
+Your own messages and tool results in the trace are always shown as plain text.
+
 ## Uploading files and images
 
 **Three ways to attach:** click 📎 (any file can be picked), **drag and drop onto anywhere on the page** (a full-page
