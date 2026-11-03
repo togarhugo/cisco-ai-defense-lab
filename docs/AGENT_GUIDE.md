@@ -118,6 +118,7 @@ It tests, with the same network and key as LabBot: the **chat** inspection endpo
 | Output | Meaning | What to do |
 |---|---|---|
 | Chat `[OK  ]` and all MCP lines `[OK  ]` | **It works** | Go to Part 7 |
+| Chat `[FAIL]` with `HTTP 400 ... No policies are attached to the connection (connection_id: ...)`, MCP lines `-32603` | **The most common first-time problem.** The key and region are fine, but the API connection has no enabled policy. The script prints `CAUSE FOUND` and the connection id | Open the API connection with that id in the dashboard, attach an **enabled policy** (you can reuse the chat gateway connection's policy), save, wait a minute and re-run. No restart is needed |
 | Chat `[OK  ]` but every MCP line `[FAIL]` with `JSON-RPC error -32603: Internal Error` | The key and region are fine, but AI Defense fails *inside* when it handles MCP messages. This points at the connection or its policy, or at the service | 1. Make sure an **enabled policy** is attached to this connection. 2. Make sure the policy has **rules that apply to MCP / tool traffic** (add a simple one and retry). 3. If it still fails, ask Cisco support, quoting the `request id` lines. Meanwhile set `AIDEFENSE_MCP_MODE: "monitor"` (tools still run) so the agent is usable |
 | Only some MCP lines fail | Some message shapes work and some do not | Send me the whole output: the app can be adapted to the shape that works |
 | `HTTP 401` or `403` | The key was rejected | Use the key of an **API** connection; re-create it and repeat Part 4 |

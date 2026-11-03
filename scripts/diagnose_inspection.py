@@ -4,6 +4,7 @@ Runs inside the labbot pod (see test-mcp-inspect.sh). It sends harmless messages
 """
 import json
 import os
+import re
 import sys
 import uuid
 
@@ -30,7 +31,7 @@ def call(path, body):
     except ValueError:
         return False, f"HTTP {r.status_code}, not JSON: {r.text[:120]!r}", rid, r.text
     if r.status_code != 200:
-        return False, f"HTTP {r.status_code}: {json.dumps(data)[:160]}", rid, data
+        return False, f"HTTP {r.status_code}: {json.dumps(data)[:300]}", rid, data
     err = data.get("error") if isinstance(data, dict) else None
     if err:
         return False, f"HTTP 200, JSON-RPC error {err.get('code')}: {err.get('message')}", rid, data
@@ -59,10 +60,11 @@ TESTS = [
      {"jsonrpc": "2.0", "method": "tools/call", "params": TOOLCALL, "id": 4,
       "result": {"content": [{"type": "text", "text": "Use TLS 1.2 or newer."}], "isError": False}}),
 ]
-results = {}
+results, msgs = {}, {}
 for label, path, body in TESTS:
-    ok, msg, rid, _ = call(path, body)
+    ok, msg, rid, data = call(path, body)
     results[label] = ok
+    msgs[label] = json.dumps(data) if data is not None else msg      # the FULL answer, for the cause analysis
     print(f"[{'OK  ' if ok else 'FAIL'}] {label:<40} {msg}")
     if not ok:
         print(f"         request id: {rid}")
@@ -70,7 +72,18 @@ for label, path, body in TESTS:
 chat_ok = results[TESTS[0][0]]
 mcp = {k: v for k, v in results.items() if k.startswith("mcp")}
 print()
-if not chat_ok and not any(mcp.values()):
+no_policy = next((m for m in msgs.values() if "No policies are attached" in m), None)
+if no_policy:
+    conn = re.search(r"connection_id:\s*([0-9a-f-]+)", no_policy)
+    print("CAUSE FOUND: no enabled policy is attached to this connection"
+          + (f" (connection id {conn.group(1)})" if conn else "") + ".\n"
+          "The key and the region are fine: AI Defense answered and named your connection.\n"
+          " 1. In the AI Defense dashboard open the API connection that this key belongs to"
+          + (" (match the connection id above)" if conn else "") + ".\n"
+          " 2. Attach an ENABLED policy to it (you can reuse the policy of your chat gateway connection) and save.\n"
+          " 3. Wait a minute and run this test again. No restart is needed.\n"
+          "A JSON-RPC 'Internal Error' on the MCP lines is probably the same cause: check again after attaching the policy.")
+elif not chat_ok and not any(mcp.values()):
     print("Everything failed: this is the key or the region, not MCP.\n"
           " - HTTP 401/403: wrong key, or a key from a GATEWAY connection. Use the key of an API connection.\n"
           " - HTTP 404 / cannot reach: wrong AIDEFENSE_BASE_URL (region) or DNS/firewall.")

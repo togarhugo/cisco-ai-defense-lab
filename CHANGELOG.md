@@ -2,6 +2,12 @@
 
 All notable changes to this project. Versions follow [SemVer](https://semver.org): MAJOR.MINOR.PATCH.
 
+## [1.6.3] - 2026-11-04
+### Fixed
+- `scripts/test-mcp-inspect.sh` said "this is the key or the region" when AI Defense answered `No policies are attached to the
+  connection`. It now recognises that answer, prints the **connection id** and the exact steps, and explains that the MCP
+  `-32603 Internal Error` is probably the same cause. Messages are no longer cut off.
+
 ## [1.6.2] - 2026-11-04
 ### Changed
 - `scripts/test-mcp-inspect.sh` is now a diagnostic: it tests the chat inspection endpoint (proves key and region) and six MCP
