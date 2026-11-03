@@ -2,6 +2,25 @@
 
 All notable changes to this project. Versions follow [SemVer](https://semver.org): MAJOR.MINOR.PATCH.
 
+## [1.6.0] - 2026-11-04
+### Added
+- **Agent mode** (Chat / Agent switch): Claude can use tools through **MCP**; a live trace shows every step, tool call
+  and result, with a Mock outbox panel and example prompts.
+- **MCP server** `labbot-mcp` (new pod, same image): mock tools (knowledge base with a planted prompt-injection document,
+  customer records with fake PII, e-mail, calculator, time) and an optional poisoned-tool-description demo.
+- **AI Defense sees the agent and MCP:** each tool call is sent to the AI Defense MCP Inspection API
+  (`/api/v1/inspect/mcp`) as the `tools/call` request before it runs and as the result before Claude reads it; the tool list
+  is inspected too. The agent's LLM calls go through the gateway on their own alias `claude-agent`
+  (secret `AIDEFENSE_AGENT_GATEWAY_URL`, defaults to the chat's URL). Verdicts show the AI Defense `event_id`.
+- Human **approval** for `send_email`, step limit, per-call timeout, fail-closed inspection.
+- `scripts/test-mcp-inspect.sh` checks the MCP inspection connection from inside the cluster.
+- The AI Defense event id is now also kept for chat-API-mode verdicts.
+### Changed
+- New dependency `mcp` (2.x); `deploy.sh` also restarts and waits for `labbot-mcp`.
+- `ensure-secrets.sh` also adds `AIDEFENSE_AGENT_GATEWAY_URL` (copy of the chat gateway URL) when missing.
+### Not verified against live AI Defense
+- Tested with stand-ins for AI Defense and Claude. Which requests are blocked depends on your policy.
+
 ## [1.5.1] - 2026-11-03
 ### Changed
 - Chat page theme: black background (panels, borders and message bubbles adjusted to match).

@@ -28,6 +28,8 @@ spec:
               valueFrom: {secretKeyRef: {name: lab-secrets, key: AIDEFENSE_API_KEY, optional: true}}
             - name: LLM_API_KEY
               valueFrom: {secretKeyRef: {name: lab-secrets, key: LITELLM_MASTER_KEY}}
+            - name: AIDEFENSE_MCP_API_KEY       # API connection key for MCP inspection (optional)
+              valueFrom: {secretKeyRef: {name: lab-secrets, key: AIDEFENSE_MCP_API_KEY, optional: true}}
           readinessProbe:
             httpGet: {path: /healthz, port: 8080}
             periodSeconds: 10

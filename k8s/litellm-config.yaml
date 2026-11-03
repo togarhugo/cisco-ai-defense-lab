@@ -1,5 +1,6 @@
 # LiteLLM AI gateway config. Aliases (LabBot picks one with LLM_MODEL in labbot-config.yaml):
-#   claude-haiku         Haiku 5.5 via Cisco AI Defense GATEWAY  (cheapest)  <- LabBot default
+#   claude-haiku         Haiku 5.5 via Cisco AI Defense GATEWAY  (cheapest)  <- LabBot chat default
+#   claude-agent         Haiku 5.5 via the AI Defense gateway connection of the AGENT (own connection, own Events)
 #   claude-chat          Opus 5.5  via Cisco AI Defense GATEWAY  (most capable)
 #   claude-haiku-direct  Haiku 5.5 straight to api.anthropic.com (UNPROTECTED baseline)
 #   claude-direct        Opus 5.5  straight to api.anthropic.com (UNPROTECTED baseline)
@@ -19,6 +20,13 @@ data:
           input_cost_per_token: 1.0e-7     # Haiku 5.5: $0.10 / 1M input tokens
           output_cost_per_token: 5.0e-7    # $0.50 / 1M output tokens
           api_base: os.environ/AIDEFENSE_GATEWAY_URL
+          api_key: os.environ/ANTHROPIC_API_KEY
+      - model_name: claude-agent
+        litellm_params:
+          model: anthropic/claude-haiku-5-5
+          input_cost_per_token: 1.0e-7
+          output_cost_per_token: 5.0e-7
+          api_base: os.environ/AIDEFENSE_AGENT_GATEWAY_URL   # same URL as claude-haiku until you create a dedicated connection
           api_key: os.environ/ANTHROPIC_API_KEY
       - model_name: claude-haiku-direct
         litellm_params:

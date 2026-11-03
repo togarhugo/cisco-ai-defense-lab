@@ -30,6 +30,14 @@ if ! has UI_PASSWORD; then
   echo ">> generated UI_PASSWORD"
 fi
 
+# The agent's LLM calls use their own LiteLLM alias (claude-agent). Until you create a dedicated AI Defense gateway
+# connection for the agent, it points at the same gateway URL as the chat (copied as stored, no re-encoding).
+if ! has AIDEFENSE_AGENT_GATEWAY_URL; then
+  B64="$($KUBECTL -n "$NS" get secret lab-secrets -o jsonpath='{.data.AIDEFENSE_GATEWAY_URL}')"
+  $KUBECTL -n "$NS" patch secret lab-secrets --type merge -p "{\"data\":{\"AIDEFENSE_AGENT_GATEWAY_URL\":\"$B64\"}}" >/dev/null
+  echo ">> AIDEFENSE_AGENT_GATEWAY_URL = same gateway URL as the chat (set a dedicated one later, see README)"
+fi
+
 if [[ -n "$NEWPW" ]]; then
   echo
   echo "   LiteLLM admin UI login   user: admin    password: $NEWPW"

@@ -66,6 +66,15 @@ Only LabBot and its ConfigMap change; no new secrets or pods.
 cd ~/cisco-ai-defense-lab && ./scripts/deploy.sh
 ```
 
+## Upgrading to v1.6.0 (Agent mode, MCP server)
+
+```bash
+cd ~/cisco-ai-defense-lab && git pull && ./scripts/deploy.sh
+```
+
+This adds one pod (`labbot-mcp`) and one secret key (`AIDEFENSE_AGENT_GATEWAY_URL`, copied from your existing gateway URL).
+Chat is not affected. Then follow *Agent mode and MCP* in the README to create the AI Defense API connection key.
+
 ## See what changed
 
 ```bash

@@ -9,8 +9,8 @@ API mode (enforce/monitor):
                  --(2) if allowed ---------> LiteLLM -> Claude API
                  --(3) response inspection-> Cisco AI Defense Inspection API -> User
 """
+import json
 import logging
-import re
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -19,14 +19,17 @@ from typing import Literal
 
 import anthropic
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 
-from .aidefense import AIDefenseClient
+from .agent import RUNS, AgentContext, drive, new_run
+from .aidefense import AIDefenseClient, MCPInspector
 from .config import settings
 from .files import SUPPORTED, AttachmentError, build_conversation
 from .llm import GatewayClaudeClient
+from .mcp_client import MCPToolClient
+from .verdicts import parse_gateway_block  # noqa: F401  (re-exported)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("labbot")
@@ -36,18 +39,6 @@ BLOCK_PROMPT_MSG = "Your message was blocked by Cisco AI Defense security policy
 BLOCK_RESPONSE_MSG = "The assistant's response was blocked by Cisco AI Defense security policy."
 BLOCK_GATEWAY_PROMPT_MSG = "Your message was blocked by the Cisco AI Defense gateway."
 BLOCK_GATEWAY_RESPONSE_MSG = "The assistant's response was blocked by the Cisco AI Defense gateway."
-GATEWAY_BLOCK_RE = re.compile(settings.aidefense_gateway_block_pattern, re.IGNORECASE | re.DOTALL)
-
-
-def parse_gateway_block(text: str) -> dict | None:
-    """Recognise an AI Defense gateway verdict returned as a normal (HTTP 200) message."""
-    m = GATEWAY_BLOCK_RE.match(text or "")
-    if not m:
-        return None
-    gd = m.groupdict()
-    stage = "response" if (gd.get("stage") or "").lower() == "response" else "prompt"
-    rules = [r.strip() for r in (gd.get("rules") or "").split(",") if r.strip()]
-    return {"stage": stage, "rules": rules, "verdict": text.strip()}
 
 
 class Attachment(BaseModel):
@@ -79,6 +70,10 @@ class ChatRequest(BaseModel):
 async def lifespan(app: FastAPI):
     app.state.aid = AIDefenseClient(settings)
     app.state.llm = GatewayClaudeClient(settings)
+    app.state.mcp = MCPToolClient(settings.mcp_server_url, settings.agent_tool_timeout)
+    app.state.agent = AgentContext(settings, app.state.llm, app.state.mcp, MCPInspector(settings, app.state.aid))
+    log.info("agent: %s model=%s mcp=%s mcp_inspection=%s", "on" if settings.agent_enabled else "off",
+             settings.agent_model, settings.mcp_server_url, settings.mcp_mode)
     log.info("LabBot %s starting: gateway=%s model=%s aidefense_mode=%s aidefense=%s",
              settings.app_version, settings.llm_base_url, settings.llm_model,
              settings.aidefense_mode, app.state.aid.url)
@@ -122,6 +117,9 @@ async def info():
             "aidefense_mode": settings.aidefense_mode,
             "inspect_response": settings.aidefense_inspect_response,
             "supported": SUPPORTED,
+            "agent": {"enabled": settings.agent_enabled, "model": settings.agent_model,
+                      "max_steps": settings.agent_max_steps, "mcp_inspection": settings.mcp_mode,
+                      "approval_tools": sorted(settings.approval_tools)},
             "limits": {"max_file_bytes": settings.max_file_bytes,
                        "max_files_per_message": settings.max_files_per_message,
                        "max_total_attachment_bytes": settings.max_total_attachment_bytes}}
@@ -200,3 +198,77 @@ async def chat(req: ChatRequest, request: Request):
     out["reply"] = r.text
     log.info("rid=%s allowed route=%s files=%d (%.0f ms)", rid, req.route, len(files), (time.monotonic() - t0) * 1000)
     return out
+
+
+# ---------------------------------------------------------------- agent mode
+def _sse_line(event: dict) -> str:
+    return f"data: {json.dumps(event)}\n\n"
+
+
+async def _stream(run, ctx: AgentContext):
+    run.busy = True
+    try:
+        async for ev in drive(run, ctx):
+            yield _sse_line(ev)
+    except Exception:  # noqa: BLE001 - never leave the browser hanging on a half-open stream
+        log.exception("rid=%s agent run crashed", run.run_id)
+        RUNS.pop(run.run_id, None)
+        yield _sse_line({"type": "error", "message": "The agent run failed unexpectedly. See the LabBot logs."})
+    finally:
+        run.busy = False
+
+
+SSE_HEADERS = {"Cache-Control": "no-store", "X-Accel-Buffering": "no"}
+
+
+@app.post("/api/agent/run")
+async def agent_run(req: ChatRequest, request: Request):
+    if not settings.agent_enabled:
+        raise HTTPException(404, "Agent mode is disabled.")
+    if req.messages[-1].role != "user":
+        raise HTTPException(400, "last message must be from the user")
+    if req.route == "direct" and not (settings.allow_direct_route and settings.aidefense_mode != "off"):
+        raise HTTPException(403, "The direct route is disabled.")
+    try:
+        convo, _inspect_convo, files = build_conversation(req.messages, settings)
+    except AttachmentError as e:
+        raise HTTPException(400, str(e))
+    route = "direct" if (req.route == "direct" or settings.aidefense_mode == "off") else "protected"
+    model = settings.llm_model_direct if route == "direct" else settings.agent_model
+    run = new_run(route, model, convo, files)
+    return StreamingResponse(_stream(run, request.app.state.agent), media_type="text/event-stream",
+                             headers=SSE_HEADERS)
+
+
+class ApproveRequest(BaseModel):
+    run_id: str
+    tool_call_id: str
+    approve: bool
+
+
+@app.post("/api/agent/approve")
+async def agent_approve(req: ApproveRequest, request: Request):
+    run = RUNS.get(req.run_id)
+    if run is None:
+        raise HTTPException(404, "This run has expired or already finished. Send the request again.")
+    if run.busy or run.awaiting != req.tool_call_id:
+        raise HTTPException(409, "This run is not waiting for that approval.")
+    run.decision = req.approve
+    return StreamingResponse(_stream(run, request.app.state.agent), media_type="text/event-stream",
+                             headers=SSE_HEADERS)
+
+
+@app.get("/api/agent/outbox")
+async def agent_outbox(request: Request):
+    try:
+        return {"emails": await request.app.state.mcp.outbox()}
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, f"Cannot read the mock outbox ({type(e).__name__}).")
+
+
+@app.delete("/api/agent/outbox")
+async def agent_outbox_clear(request: Request):
+    try:
+        return {"cleared": await request.app.state.mcp.clear_outbox()}
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, f"Cannot clear the mock outbox ({type(e).__name__}).")

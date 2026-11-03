@@ -8,10 +8,11 @@ resources:
   - litellm.yaml
   - labbot-config.yaml
   - labbot.yaml
+  - mcp.yaml
 images:
   # PostgreSQL for the LiteLLM UI. If your firewall blocks Docker Hub, use the AWS mirror instead:
   #   newName: public.ecr.aws/docker/library/postgres
   - name: postgres
     newTag: "16-alpine"
   - name: ghcr.io/togarhugo/cisco-ai-defense-lab
-    newTag: "1.5.1"   # bumped automatically by scripts/release.sh
+    newTag: "1.6.0"   # bumped automatically by scripts/release.sh

@@ -41,3 +41,18 @@ data:
   AIDEFENSE_CHAT_PATH: "/api/v1/inspect/chat"
   AIDEFENSE_FAIL_OPEN: "false"
   AIDEFENSE_INSPECT_RESPONSE: "true"
+
+  # --- Agent mode (Chat / Agent switch in the page) ---
+  AGENT_ENABLED: "true"
+  AGENT_MODEL: "claude-agent"            # LiteLLM alias -> AI Defense gateway connection for the agent
+  AGENT_MAX_STEPS: "8"
+  AGENT_APPROVAL_TOOLS: "send_email"     # tools that wait for a human click, comma separated
+  MCP_SERVER_URL: "http://labbot-mcp:8000/mcp"
+  MCP_POISONED_TOOL: "false"             # "true" = demo of a poisoned tool description (restarts the MCP pod)
+
+  # --- AI Defense MCP inspection (Inspection API, /api/v1/inspect/mcp) ---
+  # auto = enforce when AIDEFENSE_MCP_API_KEY (or AIDEFENSE_API_KEY) is set, otherwise off
+  # enforce | monitor | off. Set AIDEFENSE_BASE_URL above to YOUR region (APAC: https://ap.api.inspect.aidefense.security.cisco.com)
+  AIDEFENSE_MCP_MODE: "auto"
+  AIDEFENSE_MCP_FAIL_OPEN: "false"
+  AIDEFENSE_MCP_INSPECT_TOOLS_LIST: "true"

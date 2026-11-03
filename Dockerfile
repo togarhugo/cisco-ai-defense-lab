@@ -7,6 +7,7 @@ WORKDIR /srv
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
+COPY mcp_server ./mcp_server
 
 RUN useradd -u 10001 -m labbot
 USER 10001

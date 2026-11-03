@@ -45,6 +45,8 @@ spec:
               valueFrom: {secretKeyRef: {name: lab-secrets, key: LITELLM_MASTER_KEY}}
             - name: AIDEFENSE_GATEWAY_URL
               valueFrom: {secretKeyRef: {name: lab-secrets, key: AIDEFENSE_GATEWAY_URL}}
+            - name: AIDEFENSE_AGENT_GATEWAY_URL
+              valueFrom: {secretKeyRef: {name: lab-secrets, key: AIDEFENSE_AGENT_GATEWAY_URL}}
             # --- admin UI + database ---
             - name: LITELLM_DB_PASSWORD
               valueFrom: {secretKeyRef: {name: lab-secrets, key: LITELLM_DB_PASSWORD}}

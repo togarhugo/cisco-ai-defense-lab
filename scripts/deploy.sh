@@ -36,7 +36,7 @@ main() {
   fi
 
   # ConfigMaps don't restart pods by themselves - restart so config changes take effect
-  $KUBECTL -n "$NS" rollout restart deploy/litellm deploy/labbot
+  $KUBECTL -n "$NS" rollout restart deploy/litellm deploy/labbot deploy/labbot-mcp
   if ! $KUBECTL -n "$NS" rollout status deploy/litellm --timeout=360s; then
     echo "!! litellm did not become ready. The previous litellm pod keeps serving, so the chatbot still works." >&2
     echo "   Check: $KUBECTL -n $NS logs deploy/litellm --tail=40" >&2
@@ -44,6 +44,9 @@ main() {
     return 1
   fi
   $KUBECTL -n "$NS" rollout status deploy/labbot --timeout=180s
+  # the MCP server only serves Agent mode: if it is not ready, say so but do not fail the chat deployment
+  $KUBECTL -n "$NS" rollout status deploy/labbot-mcp --timeout=120s \
+    || echo "!! labbot-mcp is not ready: Chat works, Agent mode will report 'MCP server unavailable'. Check: $KUBECTL -n $NS describe pod -l app=labbot-mcp" >&2
   $KUBECTL -n "$NS" get pods -o wide
   local IP
   IP=$(hostname -I | awk '{print $1}')
