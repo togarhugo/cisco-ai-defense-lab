@@ -2,6 +2,14 @@
 
 All notable changes to this project. Versions follow [SemVer](https://semver.org): MAJOR.MINOR.PATCH.
 
+## [1.6.1] - 2026-11-04
+### Changed
+- Default AI Defense inspection host is now **APAC** (`https://ap.api.inspect.aidefense.security.cisco.com`) in the code and in
+  `k8s/labbot-config.yaml` (the host from your tenant's API connection example, which resolved from the cluster network).
+### Added
+- `docs/AGENT_GUIDE.md`: detailed step-by-step guide for Agent mode and MCP (update, API connection and key, test from the
+  cluster, optional dedicated agent gateway connection, scenarios, finding events in the dashboard, troubleshooting).
+
 ## [1.6.0] - 2026-11-04
 ### Added
 - **Agent mode** (Chat / Agent switch): Claude can use tools through **MCP**; a live trace shows every step, tool call

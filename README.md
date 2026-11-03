@@ -274,6 +274,8 @@ Browser -> LabBot (agent loop) --(LLM, every step)--> LiteLLM --> AI Defense GAT
                      before it runs (the request) and before Claude sees the answer (the result)
 ```
 
+**Detailed step-by-step guide (APAC): [docs/AGENT_GUIDE.md](docs/AGENT_GUIDE.md).**
+
 ### What AI Defense sees
 
 | What | How AI Defense sees it | Where you see it |
@@ -304,8 +306,8 @@ kubectl -n ai-defense-lab patch secret lab-secrets --type merge -p '{"stringData
 kubectl -n ai-defense-lab patch secret lab-secrets --type merge -p '{"stringData":{"AIDEFENSE_AGENT_GATEWAY_URL":"<agent gateway URL>"}}'
 ```
 
-3. **Region:** in `k8s/labbot-config.yaml` set `AIDEFENSE_BASE_URL` to your region's inspection host. For APAC try
-   `https://ap.api.inspect.aidefense.security.cisco.com` (if it does not answer, `https://apj.api.inspect.aidefense.security.cisco.com`).
+3. **Region:** the default is already APAC (`https://ap.api.inspect.aidefense.security.cisco.com`). For another region change
+   `AIDEFENSE_BASE_URL` in `k8s/labbot-config.yaml` (`us.` or `eu.`). If `ap.` does not answer for your tenant, try `apj.`.
 4. **Deploy:** `./scripts/deploy.sh`, then check the connection from inside the cluster:
 
 ```bash
@@ -497,7 +499,7 @@ kubectl -n ai-defense-lab patch secret lab-secrets -p "{\"stringData\":{\"AIDEFE
    If you never had a gateway URL, the secret still needs the key (LiteLLM reads it at startup).
    Use a placeholder such as `--from-literal=AIDEFENSE_GATEWAY_URL='https://example.invalid'`.
 3. In `k8s/labbot-config.yaml` set `AIDEFENSE_MODE: "enforce"` (or `monitor`), `LLM_MODEL: "claude-haiku-direct"`,
-   and `AIDEFENSE_BASE_URL` for your region (`us.` / `eu.` / `ap.api.inspect.aidefense.security.cisco.com`).
+   and check `AIDEFENSE_BASE_URL` for your region (default APAC; `us.` / `eu.` / `ap.api.inspect.aidefense.security.cisco.com`).
 4. Deploy:
 
 ```bash

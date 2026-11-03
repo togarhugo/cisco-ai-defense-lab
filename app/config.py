@@ -92,7 +92,7 @@ class Settings:
     aidefense_mode: str = field(default_factory=lambda: os.getenv("AIDEFENSE_MODE", "gateway").lower())
     aidefense_api_key: str = field(default_factory=lambda: os.getenv("AIDEFENSE_API_KEY", ""))
     aidefense_base_url: str = field(default_factory=lambda: os.getenv(
-        "AIDEFENSE_BASE_URL", "https://us.api.inspect.aidefense.security.cisco.com"))
+        "AIDEFENSE_BASE_URL", "https://ap.api.inspect.aidefense.security.cisco.com"))   # APAC; us. / eu. for other regions
     aidefense_chat_path: str = field(default_factory=lambda: os.getenv(
         "AIDEFENSE_CHAT_PATH", "/api/v1/inspect/chat"))
     aidefense_timeout: float = field(default_factory=lambda: float(os.getenv("AIDEFENSE_TIMEOUT", "10")))

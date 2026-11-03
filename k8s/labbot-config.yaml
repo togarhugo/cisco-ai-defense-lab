@@ -36,8 +36,9 @@ data:
   # "This request violates rules: Prompt Injection". Leave unset to use the built-in pattern.
   # AIDEFENSE_GATEWAY_BLOCK_PATTERN: '^\s*This (?P<stage>request|response|prompt) violates (?:the following )?rules?\s*:\s*(?P<rules>.+?)\s*\.?\s*$'
 
-  # --- API mode only (ignored in gateway mode) ---
-  AIDEFENSE_BASE_URL: "https://us.api.inspect.aidefense.security.cisco.com"
+  # --- AI Defense Inspection API: MCP checks of the agent, and chat API mode ---
+  # Region host: APAC (default here) | https://us.api.inspect.aidefense.security.cisco.com | https://eu.api.inspect.aidefense.security.cisco.com
+  AIDEFENSE_BASE_URL: "https://ap.api.inspect.aidefense.security.cisco.com"
   AIDEFENSE_CHAT_PATH: "/api/v1/inspect/chat"
   AIDEFENSE_FAIL_OPEN: "false"
   AIDEFENSE_INSPECT_RESPONSE: "true"
@@ -52,7 +53,7 @@ data:
 
   # --- AI Defense MCP inspection (Inspection API, /api/v1/inspect/mcp) ---
   # auto = enforce when AIDEFENSE_MCP_API_KEY (or AIDEFENSE_API_KEY) is set, otherwise off
-  # enforce | monitor | off. Set AIDEFENSE_BASE_URL above to YOUR region (APAC: https://ap.api.inspect.aidefense.security.cisco.com)
+  # enforce | monitor | off. The region host is AIDEFENSE_BASE_URL above.
   AIDEFENSE_MCP_MODE: "auto"
   AIDEFENSE_MCP_FAIL_OPEN: "false"
   AIDEFENSE_MCP_INSPECT_TOOLS_LIST: "true"
