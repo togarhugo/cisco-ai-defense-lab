@@ -105,6 +105,8 @@ async def drive(run: AgentRun, ctx: AgentContext) -> AsyncIterator[dict]:
     def blocked(stage: str, v: InspectionResult | None = None, **extra) -> dict:
         run.stats["blocked"] += 1
         return {"type": "blocked", "stage": stage, "step": run.step, "inspection": _verdict(v),
+                # True when AI Defense gave NO verdict (an error) and the call was stopped because inspection fails closed
+                "fail_closed": bool(v is not None and v.error),
                 "rules": (v.rules if v else extra.pop("rules", [])), "stats": run.stats, **extra}
 
     # ---------- start: list the MCP tools (and have AI Defense look at their descriptions) ----------

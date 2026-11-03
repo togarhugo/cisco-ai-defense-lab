@@ -2,6 +2,14 @@
 
 All notable changes to this project. Versions follow [SemVer](https://semver.org): MAJOR.MINOR.PATCH.
 
+## [1.6.4] - 2026-11-05
+### Fixed
+- A tool call stopped because the AI Defense inspection returned an **error** (fail closed) was shown as "BLOCKED by Cisco AI Defense,
+  rules n/a", as if it were a security verdict. It is now shown as "Stopped: AI Defense could not check this", with the error and
+  how to continue (`AIDEFENSE_MCP_FAIL_OPEN` or monitor mode). The event carries `fail_closed: true`.
+### Added
+- Guide: `AIDEFENSE_MCP_FAIL_OPEN: "true"` as the best setting while MCP inspection is not working yet (blocks only on a real unsafe verdict).
+
 ## [1.6.3] - 2026-11-04
 ### Fixed
 - `scripts/test-mcp-inspect.sh` said "this is the key or the region" when AI Defense answered `No policies are attached to the

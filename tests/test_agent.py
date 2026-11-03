@@ -190,6 +190,7 @@ async def test_request_blocked_tool_never_runs():
     b = ev[-1]
     assert b["type"] == "blocked" and b["stage"] == "mcp-request" and b["rules"] == ["Data Exfiltration"]
     assert b["tool"] == "send_email" and mcp.calls == [] and run.run_id not in A.RUNS and b["stats"]["blocked"] == 1
+    assert b["fail_closed"] is False                      # a real verdict from AI Defense
 
 
 @respx.mock
@@ -228,6 +229,7 @@ async def test_inspection_outage_fails_closed_for_tool_calls_unless_fail_open():
     mcp = FakeMCP()
     run, ev = await run_all(ctx(llm, mcp, aidefense_mcp_inspect_tools_list=False))
     assert ev[-1]["type"] == "blocked" and "HTTP 503" in ev[-1]["inspection"]["error"] and mcp.calls == []
+    assert ev[-1]["fail_closed"] is True                  # an error, not a security verdict
     llm = ScriptedLLM(calls(tu(1, "kb_read", doc_id="x")), final("ok"))
     run, ev = await run_all(ctx(llm, FakeMCP(), aidefense_mcp_inspect_tools_list=False, aidefense_mcp_fail_open=True))
     assert types(ev)[-1] == "final"

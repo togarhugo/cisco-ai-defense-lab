@@ -126,6 +126,11 @@ It tests, with the same network and key as LabBot: the **chat** inspection endpo
 | `Could not reach AI Defense ... ConnectError` | DNS or firewall | From the pod: `kubectl -n ai-defense-lab exec deploy/labbot -- python -c "import socket;print(socket.gethostbyname('ap.api.inspect.aidefense.security.cisco.com'))"`. If that fails, see *DNS problems* in the README |
 | `No API key` | Part 4 did not take effect | Repeat Part 4, including the restart |
 
+> **Best setting while MCP inspection fails:** `AIDEFENSE_MCP_FAIL_OPEN: "true"` (keep `AIDEFENSE_MCP_MODE` as `auto`). Tools are blocked only when
+> AI Defense returns an **unsafe verdict**; when it returns an **error** the tool still runs and the trace shows "AI Defense error". The moment
+> MCP inspection starts working, enforcement is automatic. `monitor` is the other option: it never blocks, even on a real unsafe verdict.
+> The trace tells the two apart: **"Stopped: AI Defense could not check this"** (an error, fail closed) vs **"BLOCKED by Cisco AI Defense"** (a verdict).
+>
 > While MCP inspection fails, `AIDEFENSE_MCP_MODE: "enforce"` (the default with a key) **blocks every tool call** (fail closed) and
 > the trace shows "AI Defense error". That is intended for a security tool. Use `monitor` (record only) or the Direct route to keep working.
 

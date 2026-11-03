@@ -354,6 +354,15 @@ function onEvent(S, ev) {
     case 'blocked': {
       S.blocked = ev;
       const rules = (ev.rules || []).join(', ') || 'n/a';
+      if (ev.fail_closed) {           // AI Defense gave no verdict: this is NOT a security decision
+        const why = (ev.inspection && ev.inspection.error) || 'unknown error';
+        addRow(S, '⛔ <b class="warn">Stopped: AI Defense could not check this</b> · stage <code>' + esc(ev.stage) + '</code><br>' +
+          '<span class="muted">No security verdict was given. The inspection returned an error and fails closed, so the call was blocked. Error: ' + esc(short(why, 240)) + '</span><br>' +
+          '<span class="muted">To keep working, set AIDEFENSE_MCP_FAIL_OPEN to "true" (or AIDEFENSE_MCP_MODE to "monitor"), see docs/AGENT_GUIDE.md.</span>', 'warnrow');
+        S.trace.classList.add('blocked');
+        addCard(S, '<div class="warn">STOPPED at ' + esc(ev.stage) + ': AI Defense returned an error (fail closed, not a security verdict)</div>');
+        break;
+      }
       addRow(S, '⛔ <b class="bad">BLOCKED by Cisco AI Defense</b> · stage <code>' + esc(ev.stage) + '</code> · rules: ' + esc(rules) +
         (ev.detail ? '<br><span class="muted">' + esc(ev.detail) + '</span>' : '') + (ev.verdict ? '<br><span class="muted">' + esc(ev.verdict) + '</span>' : '') +
         (ev.inspection ? '<br>' + mcpBadge(ev.inspection) : ''), 'badrow');
