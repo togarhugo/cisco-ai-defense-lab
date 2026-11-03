@@ -2,6 +2,14 @@
 
 All notable changes to this project. Versions follow [SemVer](https://semver.org): MAJOR.MINOR.PATCH.
 
+## [1.6.2] - 2026-11-04
+### Changed
+- `scripts/test-mcp-inspect.sh` is now a diagnostic: it tests the chat inspection endpoint (proves key and region) and six MCP
+  message shapes, prints each result with the request id, and explains the pattern (key/region problem, MCP failing
+  inside AI Defense, or only some shapes failing). Never prints the key.
+### Added
+- Guide: what an MCP `-32603 Internal Error` with a working chat endpoint means and what to check.
+
 ## [1.6.1] - 2026-11-04
 ### Changed
 - Default AI Defense inspection host is now **APAC** (`https://ap.api.inspect.aidefense.security.cisco.com`) in the code and in

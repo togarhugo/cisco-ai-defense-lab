@@ -111,16 +111,22 @@ kubectl -n ai-defense-lab describe secret lab-secrets | grep -i MCP
 ./scripts/test-mcp-inspect.sh
 ```
 
-It sends one harmless MCP message to the AI Defense MCP inspection API, using the same network and key as LabBot.
+It tests, with the same network and key as LabBot: the **chat** inspection endpoint (proves the key and region work) and
+**six MCP message shapes** (what the agent sends). It sends harmless messages only and never prints the key. Each line shows
+`[OK  ]` or `[FAIL]`, and the last lines explain what the pattern means.
 
 | Output | Meaning | What to do |
 |---|---|---|
-| `HTTP 200` and a JSON body with `"is_safe": true` and an `event_id` | **It works** | Go to Part 7 |
-| `HTTP 200` but `"is_safe": false` | It works, and your policy flagged even this message | Fine for a test, review the policy |
+| Chat `[OK  ]` and all MCP lines `[OK  ]` | **It works** | Go to Part 7 |
+| Chat `[OK  ]` but every MCP line `[FAIL]` with `JSON-RPC error -32603: Internal Error` | The key and region are fine, but AI Defense fails *inside* when it handles MCP messages. This points at the connection or its policy, or at the service | 1. Make sure an **enabled policy** is attached to this connection. 2. Make sure the policy has **rules that apply to MCP / tool traffic** (add a simple one and retry). 3. If it still fails, ask Cisco support, quoting the `request id` lines. Meanwhile set `AIDEFENSE_MCP_MODE: "monitor"` (tools still run) so the agent is usable |
+| Only some MCP lines fail | Some message shapes work and some do not | Send me the whole output: the app can be adapted to the shape that works |
 | `HTTP 401` or `403` | The key was rejected | Use the key of an **API** connection; re-create it and repeat Part 4 |
 | `HTTP 404` | Wrong host or path | Check the host in Part 3 step 5 |
 | `Could not reach AI Defense ... ConnectError` | DNS or firewall | From the pod: `kubectl -n ai-defense-lab exec deploy/labbot -- python -c "import socket;print(socket.gethostbyname('ap.api.inspect.aidefense.security.cisco.com'))"`. If that fails, see *DNS problems* in the README |
 | `No API key` | Part 4 did not take effect | Repeat Part 4, including the restart |
+
+> While MCP inspection fails, `AIDEFENSE_MCP_MODE: "enforce"` (the default with a key) **blocks every tool call** (fail closed) and
+> the trace shows "AI Defense error". That is intended for a security tool. Use `monitor` (record only) or the Direct route to keep working.
 
 ## Part 6 (optional). Give the agent its own gateway connection
 
