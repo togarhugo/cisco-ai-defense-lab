@@ -2,6 +2,10 @@
 
 All notable changes to this project. Versions follow [SemVer](https://semver.org): MAJOR.MINOR.PATCH.
 
+## [1.5.1] - 2026-11-03
+### Changed
+- Chat page theme: black background (panels, borders and message bubbles adjusted to match).
+
 ## [1.5.0] - 2026-11-03
 ### Added
 - **Archives:** `.zip`, `.tar`, `.tar.gz/.tgz`, `.tar.bz2`, `.tar.xz` and single `.gz/.bz2/.xz` files are unpacked in

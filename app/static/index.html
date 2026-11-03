@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>LabBot - AI Defense Lab</title>
 <style>
-  :root { --bg:#0f172a; --panel:#111827; --line:#1f2937; --text:#e5e7eb; --muted:#9ca3af;
-          --user:#1d4ed8; --bot:#1f2937; --ok:#16a34a; --bad:#dc2626; --warn:#d97706; }
+  :root { --bg:#000000; --panel:#0a0a0a; --line:#262626; --text:#e5e7eb; --muted:#9ca3af;
+          --user:#1d4ed8; --bot:#171717; --ok:#16a34a; --bad:#dc2626; --warn:#d97706; }
   * { box-sizing: border-box; }
   body { margin:0; font-family: system-ui, sans-serif; background:var(--bg); color:var(--text);
          display:flex; flex-direction:column; height:100vh; }
@@ -39,7 +39,7 @@
   button.act { background:var(--user); color:white; border:0; border-radius:8px; padding:0 16px; cursor:pointer; font:inherit; }
   button.secondary { background:var(--line); }
   #err { color:#fca5a5; font-size:13px; min-height:16px; margin-top:4px; overflow-wrap:anywhere; }
-  #dropzone { display:none; position:fixed; inset:0; z-index:10; background:rgba(15,23,42,.85); border:3px dashed var(--user);
+  #dropzone { display:none; position:fixed; inset:0; z-index:10; background:rgba(0,0,0,.88); border:3px dashed var(--user);
               align-items:center; justify-content:center; font-size:22px; pointer-events:none; text-align:center; padding:20px; }
   #dropzone.show { display:flex; }
   .notes { margin:2px 0 0 14px; }
