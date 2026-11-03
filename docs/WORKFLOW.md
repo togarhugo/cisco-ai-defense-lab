@@ -58,6 +58,14 @@ cd ~/cisco-ai-defense-lab && ./scripts/deploy.sh
 
 Then hard-refresh the chat page (Ctrl+Shift+R) once. From v1.4.1 on, the page is never cached, so this is no longer needed.
 
+## Upgrading to v1.5.0 (archives, Excel/PowerPoint, page-wide drag & drop and paste)
+
+Only LabBot and its ConfigMap change; no new secrets or pods.
+
+```bash
+cd ~/cisco-ai-defense-lab && ./scripts/deploy.sh
+```
+
 ## See what changed
 
 ```bash

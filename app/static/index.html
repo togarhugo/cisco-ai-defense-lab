@@ -38,7 +38,11 @@
              border:1px solid var(--line); border-radius:8px; padding:8px; font:inherit; }
   button.act { background:var(--user); color:white; border:0; border-radius:8px; padding:0 16px; cursor:pointer; font:inherit; }
   button.secondary { background:var(--line); }
-  #err { color:#fca5a5; font-size:12px; min-height:16px; margin-top:4px; }
+  #err { color:#fca5a5; font-size:13px; min-height:16px; margin-top:4px; overflow-wrap:anywhere; }
+  #dropzone { display:none; position:fixed; inset:0; z-index:10; background:rgba(15,23,42,.85); border:3px dashed var(--user);
+              align-items:center; justify-content:center; font-size:22px; pointer-events:none; text-align:center; padding:20px; }
+  #dropzone.show { display:flex; }
+  .notes { margin:2px 0 0 14px; }
   .card { border:1px solid var(--line); border-radius:8px; padding:8px; margin-bottom:8px; }
   .ok { color:var(--ok); } .bad { color:var(--bad); } .warn { color:var(--warn); }
   .muted { color:var(--muted); }
@@ -46,6 +50,7 @@
 </style>
 </head>
 <body>
+<div id="dropzone">Drop files to attach<br><small>images, PDF, Word / Excel / PowerPoint, zip / tar / gz, text and code</small></div>
 <header>
   <h1>LabBot</h1>
   <span class="pill" id="ver">v?</span>
@@ -67,8 +72,8 @@
   <div id="pending"></div>
   <div id="row">
     <input type="file" id="picker" multiple hidden>
-    <button type="button" class="act secondary" id="attach" title="Attach files or images (you can also drag &amp; drop or paste)">📎</button>
-    <textarea id="q" placeholder="Ask something... attach files or images with 📎 (try a prompt injection hidden in a file)"></textarea>
+    <button type="button" class="act secondary" id="attach" title="Attach files (or drag &amp; drop anywhere on this page, or paste)">📎</button>
+    <textarea id="q" placeholder="Ask something... attach files with 📎, drag &amp; drop them anywhere, or paste an image (try a prompt injection hidden in a file)"></textarea>
     <button type="submit" class="act" id="send">Send</button>
     <button type="button" class="act secondary" id="reset">Reset</button>
   </div>
@@ -92,7 +97,6 @@ fetch('/api/info').then(r => r.json()).then(i => {
   $('flow').textContent = i.aidefense_mode === 'gateway'
     ? 'App → LiteLLM → Cisco AI Defense gateway → Claude'
     : 'App → Cisco AI Defense (API) → LiteLLM → Claude';
-  $('picker').accept = i.accept || '';
   if (i.allow_direct) {
     $('routeWrap').style.display = 'flex';
     try { const r = localStorage.getItem('labbot-route'); if (r === 'direct' || r === 'protected') $('route').value = r; } catch (e) {}
@@ -141,12 +145,32 @@ function renderPending() { pendingEl.innerHTML = ''; pending.forEach((a, i) => p
 
 $('attach').onclick = () => $('picker').click();
 $('picker').onchange = async e => { await addFiles([...e.target.files]); e.target.value = ''; };
-['dragenter', 'dragover'].forEach(ev => f.addEventListener(ev, e => { e.preventDefault(); f.classList.add('drag'); }));
-['dragleave', 'drop'].forEach(ev => f.addEventListener(ev, e => { e.preventDefault(); f.classList.remove('drag'); }));
-f.addEventListener('drop', e => addFiles([...e.dataTransfer.files]));
-q.addEventListener('paste', e => {
-  const files = [...(e.clipboardData?.files || [])];
-  if (files.length) { e.preventDefault(); addFiles(files); }
+// Drag & drop anywhere on the page, and paste from anywhere (a dropped file must never make the browser open it)
+const dz = $('dropzone'); let dragDepth = 0;
+const hasFiles = e => e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files');
+window.addEventListener('dragenter', e => { if (!hasFiles(e)) return; e.preventDefault(); dragDepth++; dz.classList.add('show'); });
+window.addEventListener('dragover', e => { if (!hasFiles(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+window.addEventListener('dragleave', e => { if (!hasFiles(e)) return; dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) dz.classList.remove('show'); });
+window.addEventListener('drop', e => {
+  if (!hasFiles(e)) return;
+  e.preventDefault(); dragDepth = 0; dz.classList.remove('show');
+  const dt = e.dataTransfer, files = []; let folders = 0;
+  for (const it of [...(dt.items || [])]) {                 // must be read synchronously, inside the event
+    if (it.kind !== 'file') continue;
+    const entry = it.webkitGetAsEntry ? it.webkitGetAsEntry() : null;
+    if (entry && entry.isDirectory) { folders++; continue; }
+    const f = it.getAsFile(); if (f) files.push(f);
+  }
+  if (!(dt.items && dt.items.length)) files.push(...dt.files);
+  addFiles(files);
+  if (folders) setErr('Folders cannot be attached. Zip the folder and attach the .zip instead.');
+});
+window.addEventListener('paste', e => {
+  const files = [...((e.clipboardData && e.clipboardData.files) || [])];
+  if (!files.length) return;                                // plain text paste: leave to the browser
+  e.preventDefault();
+  addFiles(files.map(f => /^image\.\w+$/i.test(f.name)
+    ? new File([f], 'pasted-image-' + Date.now() + '.' + (f.type.split('/')[1] || 'png'), {type: f.type}) : f));
 });
 
 // ---------- chat ----------
@@ -179,7 +203,7 @@ f.addEventListener('submit', async e => {
   setErr('');
   const route = info.allow_direct ? $('route').value : 'protected';
   const atts = pending; pending = []; renderPending(); q.value = '';
-  bubble(text || '(files only)', 'user', atts);
+  const userBubble = bubble(text || '(files only)', 'user', atts);
   history.push({role: 'user', content: text, attachments: atts, route});
   const out = bubble('…', 'bot');
   $('send').disabled = true;
@@ -209,12 +233,15 @@ f.addEventListener('submit', async e => {
     else body = `<div>Prompt: ${verdict(data.prompt_inspection)}</div><div>Response: ${verdict(data.response_inspection)}</div>`;
     const hint = (data.blocked && !direct && history.some(m => m.route === 'direct'))
       ? '<div class="warn">Hint: earlier messages in this chat were sent via Direct. They are inspected again now and may be what AI Defense blocked. Click Reset to start clean.</div>' : '';
-    const fl = (data.files || []).map(x => `<div class="muted">📎 ${esc(x.name)} · ${esc(x.kind)}${x.pages ? ' · ' + x.pages + ' pages' : ''}${x.chars ? ' · ' + x.chars + ' chars read' : ''}${x.truncated ? ' · truncated' : ''}</div>`).join('');
+    const fl = (data.files || []).map(x => `<div class="muted">📎 ${esc(x.name)} · ${esc(x.kind)}${x.pages ? ' · ' + x.pages + ' pages' : ''}${x.entries != null ? ' · ' + x.entries + ' entries, ' + x.read + ' read, ' + x.skipped + ' skipped' : ''}${x.chars ? ' · ' + x.chars + ' chars read' : ''}${x.truncated ? ' · truncated' : ''}</div>`
+      + (x.notes || []).map(n => `<div class="muted notes">– ${esc(n)}</div>`).join('')).join('');
     c.innerHTML = `<div class="muted">${esc((text || '(files only)').slice(0, 60))}</div>${routeLine}${fl}${body}${hint}
                    <div class="muted">id ${esc(data.request_id.slice(0, 8))}</div>`;
     logEl.appendChild(c); logEl.scrollTop = logEl.scrollHeight;
   } catch (err) {
-    out.textContent = 'Error: ' + err.message; out.parentElement.classList.add('blocked'); history.pop();
+    // not a security verdict: remove this turn, put the message and files back, and say what went wrong
+    out.parentElement.remove(); userBubble.parentElement.remove(); history.pop();
+    q.value = text; pending = atts; renderPending(); setErr(err.message);
   } finally { $('send').disabled = false; }
 });
 q.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); f.requestSubmit(); } });

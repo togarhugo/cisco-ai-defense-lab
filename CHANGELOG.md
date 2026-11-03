@@ -2,6 +2,27 @@
 
 All notable changes to this project. Versions follow [SemVer](https://semver.org): MAJOR.MINOR.PATCH.
 
+## [1.5.0] - 2026-11-03
+### Added
+- **Archives:** `.zip`, `.tar`, `.tar.gz/.tgz`, `.tar.bz2`, `.tar.xz` and single `.gz/.bz2/.xz` files are unpacked in
+  memory; Claude gets a manifest (read / skipped and why) plus the contents of every readable file, and up to
+  5 pictures from inside as images. AI Defense therefore inspects the text of every file in the archive.
+- **Excel (`.xlsx`) and PowerPoint (`.pptx`)** text extraction (no new dependencies).
+- Any file type can now be picked in the file dialog (the server decides what it can read).
+- Verdict panel lists archive contents counts and each skipped file with the reason.
+### Safety
+- Archive limits (configurable, see `labbot-config.yaml`): 500 entries, 30 files read, 5 MB per file, 50 MB unpacked,
+  200,000 characters, 5 images. Real unpacked bytes are counted (declared sizes are not trusted), nothing is written
+  to disk, links are never followed, encrypted entries and nested archives are skipped, corrupt streams are rejected cleanly.
+### Fixed
+- Drag and drop only worked on the message box; dropping a file anywhere else made the browser open it. Drops
+  now work on the **whole page** (with a drop-zone overlay) and **paste works from anywhere**, including copied
+  screenshots, which are named `pasted-image-<time>.png`.
+- When a file is rejected, the message and attachments are put back in the message box instead of being lost.
+- Dropping a folder shows a clear message instead of failing silently.
+### Not supported (rejected with a clear message)
+- `.7z`, `.rar`, old `.doc/.xls/.ppt`, OpenDocument, HEIC, and binaries such as programs, audio and video.
+
 ## [1.4.1] - 2026-11-02
 ### Fixed
 - The chat page is now served with `Cache-Control: no-store`. After an upgrade, browsers could keep showing

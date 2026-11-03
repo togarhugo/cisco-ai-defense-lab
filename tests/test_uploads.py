@@ -101,19 +101,12 @@ def test_rejects_binary_garbage_fake_pdf_and_empty():
             pass
 
 
-def test_rejects_other_zip_and_invalid_base64_and_oversize():
-    for name, b in (("a.zip", b"PK\x03\x04" + b"\x00" * 30), ):
-        try:
-            process_attachment(name, b64(b), m.settings)
-            raise AssertionError("zip accepted")
-        except AttachmentError:
-            pass
-    for bad in ("!!!notbase64!!!",):
-        try:
-            process_attachment("a.txt", bad, m.settings)
-            raise AssertionError("bad base64 accepted")
-        except AttachmentError:
-            pass
+def test_invalid_base64_and_oversize_rejected():
+    try:
+        process_attachment("a.txt", "!!!notbase64!!!", m.settings)
+        raise AssertionError("bad base64 accepted")
+    except AttachmentError:
+        pass
     small = dataclasses.replace(m.settings, max_file_bytes=10)
     try:
         process_attachment("a.txt", b64(b"x" * 11), small)
@@ -243,7 +236,7 @@ def test_gateway_verdict_not_parsed_on_direct_route(monkeypatch):
 def test_info_exposes_limits_and_accept(monkeypatch):
     c = client(monkeypatch)
     i = c.get("/api/info").json()
-    assert i["allow_direct"] is True and ".pdf" in i["accept"] and i["limits"]["max_files_per_message"] == 5
+    assert i["allow_direct"] is True and "zip" in i["supported"] and i["limits"]["max_files_per_message"] == 5
 
 
 def test_chat_page_is_not_cacheable(monkeypatch):

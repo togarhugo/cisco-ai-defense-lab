@@ -30,6 +30,13 @@ class Settings:
         os.getenv("MAX_TOTAL_ATTACHMENT_BYTES", str(20 * 1024 * 1024))))  # whole conversation
     max_file_text_chars: int = field(default_factory=lambda: int(os.getenv("MAX_FILE_TEXT_CHARS", "100000")))
     max_pdf_pages: int = field(default_factory=lambda: int(os.getenv("MAX_PDF_PAGES", "100")))
+    # Archives (.zip, .tar, .tar.gz/.tgz, .tar.bz2, .tar.xz, .gz, .bz2, .xz) are unpacked in memory only
+    max_archive_entries: int = field(default_factory=lambda: int(os.getenv("MAX_ARCHIVE_ENTRIES", "500")))
+    max_archive_files_read: int = field(default_factory=lambda: int(os.getenv("MAX_ARCHIVE_FILES_READ", "30")))
+    max_archive_uncompressed_bytes: int = field(default_factory=lambda: int(
+        os.getenv("MAX_ARCHIVE_UNCOMPRESSED_BYTES", str(50 * 1024 * 1024))))
+    max_archive_text_chars: int = field(default_factory=lambda: int(os.getenv("MAX_ARCHIVE_TEXT_CHARS", "200000")))
+    max_archive_images: int = field(default_factory=lambda: int(os.getenv("MAX_ARCHIVE_IMAGES", "5")))
 
     system_prompt: str = field(default_factory=lambda: os.getenv(
         "SYSTEM_PROMPT",

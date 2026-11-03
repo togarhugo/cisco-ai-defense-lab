@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from .aidefense import AIDefenseClient
 from .config import settings
-from .files import ACCEPT, AttachmentError, build_conversation
+from .files import SUPPORTED, AttachmentError, build_conversation
 from .llm import GatewayClaudeClient
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -121,7 +121,7 @@ async def info():
             "allow_direct": settings.allow_direct_route and settings.aidefense_mode != "off",
             "aidefense_mode": settings.aidefense_mode,
             "inspect_response": settings.aidefense_inspect_response,
-            "accept": ACCEPT,
+            "supported": SUPPORTED,
             "limits": {"max_file_bytes": settings.max_file_bytes,
                        "max_files_per_message": settings.max_files_per_message,
                        "max_total_attachment_bytes": settings.max_total_attachment_bytes}}

@@ -24,6 +24,12 @@ data:
   MAX_FILES_PER_MESSAGE: "5"
   MAX_TOTAL_ATTACHMENT_BYTES: "20971520"    # 20 MB of attachments per chat
   MAX_FILE_TEXT_CHARS: "100000"             # text extracted from a file is cut after this
+  # Archives (.zip .tar .tar.gz ...) are unpacked in memory with these hard limits (zip-bomb protection)
+  MAX_ARCHIVE_ENTRIES: "500"
+  MAX_ARCHIVE_FILES_READ: "30"
+  MAX_ARCHIVE_UNCOMPRESSED_BYTES: "52428800"   # 50 MB actually unpacked
+  MAX_ARCHIVE_TEXT_CHARS: "200000"
+  MAX_ARCHIVE_IMAGES: "5"
   LLM_MAX_TOKENS: "16000"
 
   # Gateway mode: AI Defense returns blocks as HTTP 200 text like
