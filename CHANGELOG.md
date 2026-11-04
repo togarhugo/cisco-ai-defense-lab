@@ -2,6 +2,18 @@
 
 All notable changes to this project. Versions follow [SemVer](https://semver.org): MAJOR.MINOR.PATCH.
 
+## [1.7.0] - 2026-11-04
+### Added
+- **Prompt library** with 91 test prompts for the guardrails, chosen from two dropdowns (category, then prompt, grouped):
+  **Harmless** (19, incl. false-positive checks), **Security** (28), **Privacy** (15), **Safety** (17), **Multi-turn** (12).
+  Each prompt has a note with the typical AI Defense result. Prompts that need tools switch the page to Agent mode.
+- **Multi-turn player**: Next turn / Run all / Restart; stops and marks the first blocked turn; handles failures with a retry.
+- `GET /api/prompts` serves the library; the data lives in `app/prompts.py`.
+- Tests: `tests/test_prompts.py` (structure, coverage, only fake test data, only example e-mail domains) and
+  `tests/browser/library.test.js` (dropdowns, all 91 prompts, the multi-turn player). The browser test is not part of CI.
+### Notes
+- All sensitive-looking values are invented; attack prompts carry no operational detail.
+
 ## [1.6.5] - 2026-11-05
 ### Added
 - **Markdown in the bot's replies** (Chat and Agent): headings, bold, italic, strike, inline code, fenced code blocks with a

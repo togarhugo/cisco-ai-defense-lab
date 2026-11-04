@@ -87,6 +87,18 @@
   #outbox .mail { border:1px solid var(--line); border-radius:6px; padding:5px 8px; margin-top:5px; }
   #outbox .mail.ext { border-color:var(--bad); }
   #outbox button { background:var(--line); color:var(--text); border:0; border-radius:6px; padding:2px 8px; cursor:pointer; font-size:12px; }
+  #library { display:none; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:8px; }
+  #library .liblabel { font-size:13px; color:var(--muted); white-space:nowrap; }
+  #library select { max-width:min(46vw, 560px); border-width:2px; }
+  #libInfo { flex-basis:100%; font-size:12px; line-height:1.4; }
+  #scenario { display:none; border:1px solid var(--line); border-left:4px solid #2563eb; border-radius:8px; padding:8px 10px; margin-bottom:8px; background:var(--panel); font-size:13px; }
+  #scenario ol { margin:6px 0 6px 20px; padding:0; }
+  #scenario li { margin:2px 0; color:var(--muted); overflow-wrap:anywhere; }
+  #scenario li.done { color:#86efac; } #scenario li.cur { color:var(--text); font-weight:600; } #scenario li.blocked { color:#fca5a5; }
+  #scenario .sbtns { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  #scenario .sbtns button { background:var(--line); color:var(--text); border:0; border-radius:6px; padding:4px 11px; cursor:pointer; font:inherit; }
+  #scenario .sbtns button.go { background:var(--user); color:#fff; }
+  #scenario .sbtns button:disabled { opacity:.45; cursor:default; }
   @media (max-width: 800px) { main { flex-direction:column; } #log { border-left:0; border-top:1px solid var(--line); max-height:35vh; } }
 </style>
 </head>
@@ -113,6 +125,13 @@
   <aside id="log"><div id="outbox"></div><strong>AI Defense verdicts</strong><p class="muted">Each turn shows what AI Defense decided.</p></aside>
 </main>
 <form id="composer">
+  <div id="library">
+    <span class="liblabel">📚 Prompt library</span>
+    <select id="libCat" title="Choose a category: harmless, security, privacy, safety or multi-turn"></select>
+    <select id="libItem" title="Choose a prompt. It is put in the message box, nothing is sent until you press Send" disabled><option value="">Choose a category first</option></select>
+    <span id="libInfo" class="muted"></span>
+  </div>
+  <div id="scenario"></div>
   <div id="examples"></div>
   <div id="pending"></div>
   <div id="row">
@@ -129,6 +148,8 @@ const $ = id => document.getElementById(id);
 const chat = $('chat'), logEl = $('log'), q = $('q'), f = $('composer'), pendingEl = $('pending'), errEl = $('err');
 let history = [];      // {role, content, attachments:[{name, data, mime}]}
 let pending = [];      // files chosen for the next message
+let scenario = null;   // the multi-turn scenario being played (prompt library)
+let turnCounter = 0, lastTurn = {};   // bumped whenever a turn ends: lets the scenario player wait for it
 let info = {limits: {max_file_bytes: 5242880, max_files_per_message: 5, max_total_attachment_bytes: 20971520}};
 
 function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
@@ -438,10 +459,12 @@ f.addEventListener('submit', async e => {
     c.innerHTML = `<div class="muted">${esc((text || '(files only)').slice(0, 60))}</div>${routeLine}${fl}${body}${hint}
                    <div class="muted">id ${esc(data.request_id.slice(0, 8))}</div>`;
     logEl.appendChild(c); logEl.scrollTop = logEl.scrollHeight;
+    $('send').disabled = false; turnDone({blocked: !!data.blocked});
   } catch (err) {
     // not a security verdict: remove this turn, put the message and files back, and say what went wrong
     out.parentElement.remove(); userBubble.parentElement.remove(); history.pop();
     q.value = text; pending = atts; renderPending(); setErr(err.message);
+    $('send').disabled = false; turnDone({failed: true, message: err.message});
   } finally { $('send').disabled = false; }
 });
 // ---------- agent mode ----------
@@ -567,6 +590,7 @@ function endTurn(S) {
     q.value = S.text; pending = S.atts; renderPending(); setErr(S.failed || 'The agent stopped unexpectedly.');
   }
   loadOutbox();
+  turnDone({blocked: !!S.blocked, failed: !S.final && !S.blocked, message: S.failed});
 }
 
 async function agentTurn(text, atts, route, userBubble) {
@@ -594,7 +618,103 @@ async function loadOutbox() {
 }
 
 q.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); f.requestSubmit(); } });
-$('reset').onclick = () => { history = []; pending = []; renderPending(); chat.innerHTML = ''; setErr(''); };
+function resetChat() { history = []; pending = []; renderPending(); chat.innerHTML = ''; setErr(''); }
+$('reset').onclick = () => {
+  resetChat();
+  if (scenario) { scenario.epoch++; scenario.idx = 0; scenario.blockedAt = null; scenario.failed = null; scenario.running = false; scenario.cancel = true; renderScenario(); }
+};
+
+// ---------- prompt library (test prompts for the guardrails, from /api/prompts) ----------
+let LIB = null;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function until(cond, ms = 900000) { const t0 = Date.now(); while (!cond() && Date.now() - t0 < ms) await sleep(120); }
+function turnDone(r) { turnCounter++; lastTurn = r || {}; }
+
+async function loadLibrary() {
+  try { const r = await fetch('/api/prompts'); if (!r.ok) return; LIB = await r.json(); } catch (e) { return; }
+  $('libCat').innerHTML = '<option value="">Category…</option>' + LIB.categories.map(c =>
+    '<option value="' + esc(c.id) + '">' + esc(c.label) + ' (' + LIB.items.filter(i => i.category === c.id).length + ')</option>').join('');
+  $('library').style.display = 'flex';
+}
+$('libCat').onchange = () => {
+  const c = LIB && LIB.categories.find(x => x.id === $('libCat').value), sel = $('libItem');
+  $('libCat').style.borderColor = c ? c.color : '';
+  sel.style.borderColor = c ? c.color : '';
+  sel.innerHTML = '';
+  if (!c) { sel.disabled = true; sel.innerHTML = '<option value="">Choose a category first</option>'; $('libInfo').textContent = ''; return; }
+  const items = LIB.items.filter(i => i.category === c.id);
+  const first = document.createElement('option'); first.value = ''; first.textContent = 'Choose a prompt (' + items.length + ')…'; sel.appendChild(first);
+  const groups = new Map();
+  items.forEach(it => { if (!groups.has(it.group)) groups.set(it.group, []); groups.get(it.group).push(it); });
+  groups.forEach((list, g) => {
+    const og = document.createElement('optgroup'); og.label = g;
+    list.forEach(it => { const o = document.createElement('option'); o.value = it.id;
+      o.textContent = (it.mode === 'agent' ? '🤖 ' : '') + it.title + (it.turns ? '  ·  ' + it.turns.length + ' turns' : ''); og.appendChild(o); });
+    sel.appendChild(og);
+  });
+  sel.disabled = false; $('libInfo').textContent = c.description;
+};
+$('libItem').onchange = () => {
+  const it = LIB && LIB.items.find(x => x.id === $('libItem').value); if (!it) return;
+  let note = '';
+  if (it.mode === 'agent' && mode !== 'agent') { setMode('agent'); note = 'This one uses tools, so the page switched to Agent mode. '; }
+  if (it.turns) startScenario(it); else { endScenario(); q.value = it.prompt; q.focus(); }
+  $('libInfo').textContent = note + 'Typical AI Defense result: ' + it.expect + '. What really happens depends on the policy on your connection (and Claude may refuse as well).';
+};
+
+// ----- multi-turn player: sends the turns one after another so AI Defense sees the whole conversation -----
+function startScenario(it) {
+  if (history.length) resetChat();                              // a scenario needs a clean conversation
+  scenario = {it, idx: 0, blockedAt: null, failed: null, running: false, cancel: false, epoch: 0};
+  q.value = ''; renderScenario();
+}
+function endScenario() { if (scenario) scenario.cancel = true; scenario = null; $('scenario').style.display = 'none'; }
+const scenarioDone = S => S.blockedAt !== null || S.idx >= S.it.turns.length;
+function renderScenario() {
+  const box = $('scenario'); if (!scenario) { box.style.display = 'none'; return; }
+  const S = scenario, n = S.it.turns.length, finished = scenarioDone(S);
+  box.style.display = 'block'; box.innerHTML = '';
+  const head = document.createElement('div');
+  head.innerHTML = '<b>Multi-turn:</b> ' + esc(S.it.title) + ' <span class="muted">· ' + (finished ? 'finished' : 'turn ' + (S.idx + 1) + ' of ' + n) + '</span>';
+  box.appendChild(head);
+  const ol = document.createElement('ol');
+  S.it.turns.forEach((t, k) => { const li = document.createElement('li'); li.textContent = t;
+    if (k < S.idx) li.className = S.blockedAt === k ? 'blocked' : 'done'; else if (k === S.idx && !finished) li.className = 'cur'; ol.appendChild(li); });
+  box.appendChild(ol);
+  const status = document.createElement('div'); status.className = 'muted'; status.style.margin = '0 0 6px';
+  status.textContent = S.running ? 'Running…' : S.failed ? '⚠ Turn ' + (S.idx + 1) + ' failed: ' + S.failed + ' (Next turn retries it)'
+    : S.blockedAt !== null ? '⛔ Stopped: AI Defense blocked turn ' + (S.blockedAt + 1) + ' of ' + n
+    : finished ? '✔ All ' + n + ' turns were allowed' : 'Press Next turn to send one message at a time, or Run all.';
+  box.appendChild(status);
+  const bt = document.createElement('div'); bt.className = 'sbtns';
+  const mk = (label, fn, cls, disabled) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.disabled = !!disabled; if (cls) b.className = cls; b.onclick = fn; bt.appendChild(b); };
+  mk('▶ Next turn', () => runTurn(), 'go', S.running || finished);
+  mk('⏩ Run all', () => runAll(), '', S.running || finished);
+  mk('↺ Restart', () => { resetChat(); S.epoch++; S.idx = 0; S.blockedAt = null; S.failed = null; S.running = false; renderScenario(); }, '', S.running);
+  mk('✕ Close', () => endScenario(), '', false);
+  box.appendChild(bt);
+}
+async function runTurn() {
+  const S = scenario; if (!S || S.running || scenarioDone(S)) return;
+  S.running = true; S.failed = null; S.cancel = false; renderScenario();
+  const epoch = S.epoch;
+  if (S.it.mode === 'agent' && mode !== 'agent') setMode('agent');
+  await until(() => !$('send').disabled);                      // another turn (or an approval) may still be running
+  if (scenario !== S || S.epoch !== epoch) return;
+  q.value = S.it.turns[S.idx];
+  const before = turnCounter;
+  f.requestSubmit();
+  await until(() => turnCounter > before || scenario !== S || S.epoch !== epoch);
+  if (scenario !== S || S.epoch !== epoch) return;
+  if (lastTurn.failed) S.failed = lastTurn.message || 'unknown error';
+  else { if (lastTurn.blocked) S.blockedAt = S.idx; S.idx++; }
+  S.running = false; renderScenario();
+}
+async function runAll() {
+  const S = scenario; if (!S) return;
+  while (scenario === S && !scenarioDone(S) && !S.failed && !S.cancel) { await runTurn(); await sleep(250); }
+}
+loadLibrary();
 </script>
 </body>
 </html>

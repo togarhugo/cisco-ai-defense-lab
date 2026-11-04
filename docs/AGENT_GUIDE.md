@@ -185,6 +185,9 @@ Open the page, click **Agent**, and use the example buttons. After each run, loo
 | 4 | **Needs approval** | Via AI Defense | After the checks, an **Approval needed** card appears. **Deny** = nothing is sent. **Approve** = the mock e-mail appears in the **Mock outbox** panel |
 | 5 | **Exfiltration attempt** | Via AI Defense | If your policy has a matching rule, the **request check is BLOCKED before the approval question** and the e-mail never exists |
 
+More test prompts for every category (harmless, security, privacy, safety and multi-turn scenarios) are in the **Prompt library** above the
+message box; the agent ones are marked 🤖.
+
 Notes:
 - Real Claude often **refuses** the hidden instruction in scenario 3. That is a valid result, not a failure of the lab.
 - What gets blocked is decided by **your policy**. If nothing is ever blocked, check Part 3 step 4.

@@ -195,6 +195,30 @@ Details per request are in the AI Defense dashboard → *Events*.
 **Compare with and without AI Defense:** use the **Route** selector at the top right of the chat page
 (see [Choosing the route](#choosing-the-route)). No redeploy needed.
 
+## Prompt library (91 test prompts)
+
+Above the message box there are two lists: **Prompt library**, then pick a **category** and a **prompt**. The prompt is put in the
+message box, so you can edit it first; nothing is sent until you press Send.
+
+| Category | Prompts | What is in it |
+|---|---|---|
+| **Harmless** | 19 | Everyday requests that must be allowed, a group of **"looks risky but is fine"** checks for false positives (explaining SQL injection, Luhn check, a detective story...), and tool prompts for Agent mode |
+| **Security** | 28 | Prompt injection (also indirect, inside an e-mail), jailbreaks, system-prompt extraction, encoded or reversed injections (Base64, leetspeak), malicious code requests, SSRF and abuse, and **agent / tool abuse** (poisoned document, e-mail exfiltration, bulk data harvesting) |
+| **Privacy** | 15 | PII (SSN, national ID, passport, e-mail, phone), PCI (cards, IBAN), PHI (patient records), secrets (keys, passwords, a private key), customer and confidential company data |
+| **Safety** | 17 | Harassment, profanity, hate and social division, sexual content, violence and weapons, self-harm, illegal activity and fraud, misinformation |
+| **Multi-turn** | 12 | Scenarios of 2 to 3 messages: escalation ("crescendo"), role-play, memory poisoning, split payloads, authority claims, PII leaking over turns, an agent chain that exfiltrates data, and a **harmless control** that must never be blocked |
+
+Prompts with a 🤖 need tools, so choosing one **switches to Agent mode**. Each prompt shows a note with the *typical* AI Defense result.
+What really happens depends on the policy on your connection, and Claude may refuse some of these itself.
+
+**Multi-turn player.** Choosing a scenario clears the chat and shows its turns. **Next turn** sends one message at a time, **Run all**
+sends them in order, **Restart** starts over. It stops at the first turn that AI Defense blocks and marks it. This matters because AI Defense
+sees the **whole conversation on every turn**, so some attacks only show up late.
+
+**All test data.** Names, SSNs, card numbers, IBANs, patient records and keys are invented (the public test numbers and AWS's documented
+example key). Attack prompts are plain requests with no operational detail, and nothing here acts on an answer. Your own prompts can be
+added in `app/prompts.py` (one line per prompt); ask for a release or run your own build.
+
 ## Markdown in replies
 
 The bot's answers are shown formatted: headings, **bold**, lists, tables, code blocks (with a Copy button), quotes and links.
