@@ -126,7 +126,8 @@
 </main>
 <form id="composer">
   <div id="library">
-    <span class="liblabel">📚 Prompt library</span>
+    <span class="liblabel" id="libLabel">📚 Prompt library</span>
+    <select id="libLang" title="Language of the test prompts"></select>
     <select id="libCat" title="Choose a category: harmless, security, privacy, safety or multi-turn"></select>
     <select id="libItem" title="Choose a prompt. It is put in the message box, nothing is sent until you press Send" disabled><option value="">Choose a category first</option></select>
     <span id="libInfo" class="muted"></span>
@@ -624,74 +625,131 @@ $('reset').onclick = () => {
   if (scenario) { scenario.epoch++; scenario.idx = 0; scenario.blockedAt = null; scenario.failed = null; scenario.running = false; scenario.cancel = true; renderScenario(); }
 };
 
-// ---------- prompt library (test prompts for the guardrails, from /api/prompts) ----------
-let LIB = null;
+// ---------- prompt library (test prompts for the guardrails, from /api/prompts; English and Bahasa Indonesia) ----------
+let LIB = null, libLang = 'en', lastFilled = null;
+const LS = {
+  en: {label: '📚 Prompt library', lang: 'Language of the test prompts', cat: 'Category…',
+       catTitle: 'Choose a category: harmless, security, privacy, safety or multi-turn',
+       itemFirst: 'Choose a category first', itemTitle: 'Choose a prompt. It is put in the message box, nothing is sent until you press Send',
+       choose: n => 'Choose a prompt (' + n + ')…', turns: n => n + ' turns',
+       toolNote: 'This one uses tools, so the page switched to Agent mode. ',
+       typical: x => 'Typical AI Defense result: ' + x + '. What really happens depends on the policy on your connection (and Claude may refuse as well).',
+       scen: 'Multi-turn:', turnOf: (a, n) => 'turn ' + a + ' of ' + n, finished: 'finished', running: 'Running…',
+       failed: (k, m) => '⚠ Turn ' + k + ' failed: ' + m + ' (Next turn retries it)',
+       blocked: (k, n) => '⛔ Stopped: AI Defense blocked turn ' + k + ' of ' + n, allowed: n => '✔ All ' + n + ' turns were allowed',
+       hint: 'Press Next turn to send one message at a time, or Run all.',
+       next: '▶ Next turn', all: '⏩ Run all', restart: '↺ Restart', close: '✕ Close'},
+  id: {label: '📚 Pustaka prompt', lang: 'Bahasa prompt uji', cat: 'Kategori…',
+       catTitle: 'Pilih kategori: tidak berbahaya, keamanan, privasi, keselamatan, atau multi-turn',
+       itemFirst: 'Pilih kategori dulu', itemTitle: 'Pilih prompt. Prompt dimasukkan ke kotak pesan, tidak ada yang dikirim sampai Anda menekan Send',
+       choose: n => 'Pilih prompt (' + n + ')…', turns: n => n + ' giliran',
+       toolNote: 'Prompt ini memakai tool, jadi halaman beralih ke mode Agent. ',
+       typical: x => 'Hasil AI Defense yang umum: ' + x + '. Hasil sebenarnya bergantung pada policy di koneksi Anda (dan Claude juga bisa menolak).',
+       scen: 'Multi-turn:', turnOf: (a, n) => 'giliran ' + a + ' dari ' + n, finished: 'selesai', running: 'Berjalan…',
+       failed: (k, m) => '⚠ Giliran ' + k + ' gagal: ' + m + ' (Giliran berikutnya akan mengulangnya)',
+       blocked: (k, n) => '⛔ Berhenti: AI Defense memblokir giliran ' + k + ' dari ' + n, allowed: n => '✔ Semua ' + n + ' giliran diizinkan',
+       hint: 'Tekan Giliran berikutnya untuk mengirim satu pesan, atau Jalankan semua.',
+       next: '▶ Giliran berikutnya', all: '⏩ Jalankan semua', restart: '↺ Ulangi', close: '✕ Tutup'},
+};
+const ls = () => LS[libLang] || LS.en;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function until(cond, ms = 900000) { const t0 = Date.now(); while (!cond() && Date.now() - t0 < ms) await sleep(120); }
 function turnDone(r) { turnCounter++; lastTurn = r || {}; }
+const tx = it => it.text[libLang] || it.text.en;                       // the item in the chosen language
+const catText = (c, k) => c[k][libLang] || c[k].en;
+const selItem = () => LIB && LIB.items.find(x => x.id === $('libItem').value);
 
 async function loadLibrary() {
   try { const r = await fetch('/api/prompts'); if (!r.ok) return; LIB = await r.json(); } catch (e) { return; }
-  $('libCat').innerHTML = '<option value="">Category…</option>' + LIB.categories.map(c =>
-    '<option value="' + esc(c.id) + '">' + esc(c.label) + ' (' + LIB.items.filter(i => i.category === c.id).length + ')</option>').join('');
-  $('library').style.display = 'flex';
+  let saved = null; try { saved = localStorage.getItem('labbot-lang'); } catch (e) {}
+  const codes = LIB.languages.map(l => l.code);
+  libLang = codes.includes(saved) ? saved : ((navigator.language || '').toLowerCase().startsWith('id') && codes.includes('id') ? 'id' : 'en');
+  $('libLang').innerHTML = LIB.languages.map(l => '<option value="' + esc(l.code) + '">' + esc(l.label) + '</option>').join('');
+  $('libLang').value = libLang;
+  applyLibStrings(); renderCats(''); $('library').style.display = 'flex';
 }
-$('libCat').onchange = () => {
+function applyLibStrings() {
+  const t = ls();
+  $('libLabel').textContent = t.label; $('libLang').title = t.lang; $('libCat').title = t.catTitle; $('libItem').title = t.itemTitle;
+}
+function renderCats(keep) {
+  $('libCat').innerHTML = '<option value="">' + esc(ls().cat) + '</option>' + LIB.categories.map(c =>
+    '<option value="' + esc(c.id) + '">' + esc(catText(c, 'label')) + ' (' + LIB.items.filter(i => i.category === c.id).length + ')</option>').join('');
+  $('libCat').value = keep || '';
+}
+function renderItems(keep) {
   const c = LIB && LIB.categories.find(x => x.id === $('libCat').value), sel = $('libItem');
-  $('libCat').style.borderColor = c ? c.color : '';
-  sel.style.borderColor = c ? c.color : '';
+  $('libCat').style.borderColor = c ? c.color : ''; sel.style.borderColor = c ? c.color : '';
   sel.innerHTML = '';
-  if (!c) { sel.disabled = true; sel.innerHTML = '<option value="">Choose a category first</option>'; $('libInfo').textContent = ''; return; }
+  if (!c) { sel.disabled = true; sel.innerHTML = '<option value="">' + esc(ls().itemFirst) + '</option>'; $('libInfo').textContent = ''; return; }
   const items = LIB.items.filter(i => i.category === c.id);
-  const first = document.createElement('option'); first.value = ''; first.textContent = 'Choose a prompt (' + items.length + ')…'; sel.appendChild(first);
+  const first = document.createElement('option'); first.value = ''; first.textContent = ls().choose(items.length); sel.appendChild(first);
   const groups = new Map();
-  items.forEach(it => { if (!groups.has(it.group)) groups.set(it.group, []); groups.get(it.group).push(it); });
+  items.forEach(it => { const g = tx(it).group; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(it); });
   groups.forEach((list, g) => {
     const og = document.createElement('optgroup'); og.label = g;
     list.forEach(it => { const o = document.createElement('option'); o.value = it.id;
-      o.textContent = (it.mode === 'agent' ? '🤖 ' : '') + it.title + (it.turns ? '  ·  ' + it.turns.length + ' turns' : ''); og.appendChild(o); });
+      o.textContent = (it.mode === 'agent' ? '🤖 ' : '') + tx(it).title + (tx(it).turns ? '  ·  ' + ls().turns(tx(it).turns.length) : ''); og.appendChild(o); });
     sel.appendChild(og);
   });
-  sel.disabled = false; $('libInfo').textContent = c.description;
+  sel.disabled = false; sel.value = keep || ''; $('libInfo').textContent = catText(c, 'description');
+}
+function itemNote(it, switched) {
+  $('libInfo').textContent = (switched ? ls().toolNote : '') + ls().typical(tx(it).expect);
+}
+$('libLang').onchange = () => {
+  if (!LIB) return;
+  libLang = $('libLang').value; try { localStorage.setItem('labbot-lang', libLang); } catch (e) {}
+  const cat = $('libCat').value, item = $('libItem').value, it = selItem();
+  applyLibStrings(); renderCats(cat); renderItems(item);
+  if (it) {
+    itemNote(it, false);
+    // the message box still holds the prompt that was filled in (not edited by hand): show it in the new language
+    if (!tx(it).turns && lastFilled && lastFilled.id === it.id && q.value === lastFilled.text) { q.value = tx(it).prompt; lastFilled.text = q.value; }
+  }
+  if (scenario) {
+    if (scenario.idx === 0 && !scenario.running && scenario.it.id === item) { scenario.turns = tx(scenario.it).turns; scenario.title = tx(scenario.it).title; }
+    renderScenario();                                           // a scenario already under way keeps the language of its turns
+  }
 };
+$('libCat').onchange = () => renderItems('');
 $('libItem').onchange = () => {
-  const it = LIB && LIB.items.find(x => x.id === $('libItem').value); if (!it) return;
-  let note = '';
-  if (it.mode === 'agent' && mode !== 'agent') { setMode('agent'); note = 'This one uses tools, so the page switched to Agent mode. '; }
-  if (it.turns) startScenario(it); else { endScenario(); q.value = it.prompt; q.focus(); }
-  $('libInfo').textContent = note + 'Typical AI Defense result: ' + it.expect + '. What really happens depends on the policy on your connection (and Claude may refuse as well).';
+  const it = selItem(); if (!it) return;
+  let switched = false;
+  if (it.mode === 'agent' && mode !== 'agent') { setMode('agent'); switched = true; }
+  if (tx(it).turns) startScenario(it); else { endScenario(); q.value = tx(it).prompt; lastFilled = {id: it.id, text: q.value}; q.focus(); }
+  itemNote(it, switched);
 };
 
 // ----- multi-turn player: sends the turns one after another so AI Defense sees the whole conversation -----
 function startScenario(it) {
   if (history.length) resetChat();                              // a scenario needs a clean conversation
-  scenario = {it, idx: 0, blockedAt: null, failed: null, running: false, cancel: false, epoch: 0};
+  scenario = {it, turns: tx(it).turns, title: tx(it).title, idx: 0, blockedAt: null, failed: null, running: false, cancel: false, epoch: 0};
   q.value = ''; renderScenario();
 }
 function endScenario() { if (scenario) scenario.cancel = true; scenario = null; $('scenario').style.display = 'none'; }
-const scenarioDone = S => S.blockedAt !== null || S.idx >= S.it.turns.length;
+const scenarioDone = S => S.blockedAt !== null || S.idx >= S.turns.length;
 function renderScenario() {
   const box = $('scenario'); if (!scenario) { box.style.display = 'none'; return; }
-  const S = scenario, n = S.it.turns.length, finished = scenarioDone(S);
+  const S = scenario, n = S.turns.length, finished = scenarioDone(S), t = ls();
   box.style.display = 'block'; box.innerHTML = '';
   const head = document.createElement('div');
-  head.innerHTML = '<b>Multi-turn:</b> ' + esc(S.it.title) + ' <span class="muted">· ' + (finished ? 'finished' : 'turn ' + (S.idx + 1) + ' of ' + n) + '</span>';
+  head.innerHTML = '<b>' + esc(t.scen) + '</b> ' + esc(S.title) + ' <span class="muted">· ' + esc(finished ? t.finished : t.turnOf(S.idx + 1, n)) + '</span>';
   box.appendChild(head);
   const ol = document.createElement('ol');
-  S.it.turns.forEach((t, k) => { const li = document.createElement('li'); li.textContent = t;
+  S.turns.forEach((x, k) => { const li = document.createElement('li'); li.textContent = x;
     if (k < S.idx) li.className = S.blockedAt === k ? 'blocked' : 'done'; else if (k === S.idx && !finished) li.className = 'cur'; ol.appendChild(li); });
   box.appendChild(ol);
   const status = document.createElement('div'); status.className = 'muted'; status.style.margin = '0 0 6px';
-  status.textContent = S.running ? 'Running…' : S.failed ? '⚠ Turn ' + (S.idx + 1) + ' failed: ' + S.failed + ' (Next turn retries it)'
-    : S.blockedAt !== null ? '⛔ Stopped: AI Defense blocked turn ' + (S.blockedAt + 1) + ' of ' + n
-    : finished ? '✔ All ' + n + ' turns were allowed' : 'Press Next turn to send one message at a time, or Run all.';
+  status.textContent = S.running ? t.running : S.failed ? t.failed(S.idx + 1, S.failed)
+    : S.blockedAt !== null ? t.blocked(S.blockedAt + 1, n) : finished ? t.allowed(n) : t.hint;
   box.appendChild(status);
   const bt = document.createElement('div'); bt.className = 'sbtns';
   const mk = (label, fn, cls, disabled) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.disabled = !!disabled; if (cls) b.className = cls; b.onclick = fn; bt.appendChild(b); };
-  mk('▶ Next turn', () => runTurn(), 'go', S.running || finished);
-  mk('⏩ Run all', () => runAll(), '', S.running || finished);
-  mk('↺ Restart', () => { resetChat(); S.epoch++; S.idx = 0; S.blockedAt = null; S.failed = null; S.running = false; renderScenario(); }, '', S.running);
-  mk('✕ Close', () => endScenario(), '', false);
+  mk(t.next, () => runTurn(), 'go', S.running || finished);
+  mk(t.all, () => runAll(), '', S.running || finished);
+  mk(t.restart, () => { resetChat(); S.epoch++; S.idx = 0; S.blockedAt = null; S.failed = null; S.running = false; renderScenario(); }, '', S.running);
+  mk(t.close, () => endScenario(), '', false);
   box.appendChild(bt);
 }
 async function runTurn() {
@@ -701,7 +759,7 @@ async function runTurn() {
   if (S.it.mode === 'agent' && mode !== 'agent') setMode('agent');
   await until(() => !$('send').disabled);                      // another turn (or an approval) may still be running
   if (scenario !== S || S.epoch !== epoch) return;
-  q.value = S.it.turns[S.idx];
+  q.value = S.turns[S.idx];
   const before = turnCounter;
   f.requestSubmit();
   await until(() => turnCounter > before || scenario !== S || S.epoch !== epoch);

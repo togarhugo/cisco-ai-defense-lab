@@ -2,6 +2,17 @@
 
 All notable changes to this project. Versions follow [SemVer](https://semver.org): MAJOR.MINOR.PATCH.
 
+## [1.8.0] - 2026-11-04
+### Added
+- **Language selection for the prompt library**: a dropdown with **English** and **Bahasa Indonesia**. All 91 prompts (single and
+  multi-turn), the category and group names, the notes and the multi-turn player are available in both languages.
+- The choice is saved in the browser (`labbot-lang`); the default follows the browser language.
+- Switching language re-fills an untouched prompt in the new language; text you edited is never overwritten; a running scenario keeps its language.
+### Changed
+- `GET /api/prompts` now returns `{languages, categories, items}`; each item has `text.en` and `text.id`; the Indonesian texts live in `app/prompts_id.py`.
+- Encoded prompts (Base64, leetspeak, reversed) are generated from the sentence of each language.
+- Tests: `tests/test_prompts.py` checks both languages (same structure, real translations, encodings decode); the browser test loads all 91 prompts in both.
+
 ## [1.7.0] - 2026-11-04
 ### Added
 - **Prompt library** with 91 test prompts for the guardrails, chosen from two dropdowns (category, then prompt, grouped):

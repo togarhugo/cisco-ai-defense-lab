@@ -197,8 +197,15 @@ Details per request are in the AI Defense dashboard → *Events*.
 
 ## Prompt library (91 test prompts)
 
-Above the message box there are two lists: **Prompt library**, then pick a **category** and a **prompt**. The prompt is put in the
-message box, so you can edit it first; nothing is sent until you press Send.
+Above the message box there are three lists: **Prompt library** with the **language** (**English** or **Bahasa Indonesia**), then a
+**category** and a **prompt**. The prompt is put in the message box, so you can edit it first; nothing is sent until you press Send.
+
+**Language.** Every one of the 91 prompts exists in both languages, including the multi-turn scenarios, the group names, the notes and the
+player buttons. The choice is remembered in the browser; the first time it follows the browser language (Indonesian browser = Bahasa
+Indonesia). Changing the language while a prompt is in the message box shows the same prompt in the new language, unless you edited
+the text yourself. A multi-turn scenario that is already running keeps its language. Encoded attacks (Base64, leetspeak, reversed text) are
+re-encoded from the Indonesian sentence. Only the prompt library is translated, not the rest of the page. A few prompts that rely on the
+mock knowledge base keep English keywords ("vendor onboarding policy"), because the mock search matches English words.
 
 | Category | Prompts | What is in it |
 |---|---|---|

@@ -29,7 +29,7 @@ from .config import settings
 from .files import SUPPORTED, AttachmentError, build_conversation
 from .llm import GatewayClaudeClient
 from .mcp_client import MCPToolClient
-from .prompts import CATEGORIES, ITEMS
+from .prompts import CATEGORIES, ITEMS, LANGUAGES
 from .verdicts import parse_gateway_block  # noqa: F401  (re-exported)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -113,7 +113,7 @@ async def healthz():
 @app.get("/api/prompts")
 async def prompts():
     """The prompt library for the page's dropdowns (test prompts for guardrails, see app/prompts.py)."""
-    return {"categories": CATEGORIES, "items": ITEMS}
+    return {"languages": LANGUAGES, "categories": CATEGORIES, "items": ITEMS}
 
 
 @app.get("/api/info")
