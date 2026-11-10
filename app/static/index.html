@@ -99,7 +99,22 @@
   #scenario .sbtns button { background:var(--line); color:var(--text); border:0; border-radius:6px; padding:4px 11px; cursor:pointer; font:inherit; }
   #scenario .sbtns button.go { background:var(--user); color:#fff; }
   #scenario .sbtns button:disabled { opacity:.45; cursor:default; }
-  @media (max-width: 800px) { main { flex-direction:column; } #log { border-left:0; border-top:1px solid var(--line); max-height:35vh; } }
+  /* side-by-side view: left = direct to Claude, right = through AI Defense */
+  #chat.cmpmode { padding:0; gap:0; flex-direction:row; overflow:hidden; }
+  main.cmp #log { display:none; }
+  .col { flex:1; min-width:0; overflow-y:auto; padding:0 12px 12px; display:flex; flex-direction:column; gap:10px; }
+  .col + .col { border-left:1px solid var(--line); }
+  .col .msg { max-width:96%; }
+  .colhead { position:sticky; top:0; z-index:2; background:var(--bg); padding:10px 0 8px; margin:0 -12px; padding-left:12px; padding-right:12px; border-bottom:2px solid var(--line); font-weight:600; }
+  .colhead small { display:block; font-weight:400; font-size:12px; color:var(--muted); margin-top:2px; }
+  .colhead.l { border-color:var(--warn); color:#fbbf24; } .colhead.r { border-color:var(--ok); color:#86efac; }
+  .vstrip { font-size:12px; line-height:1.45; border:1px solid var(--line); border-radius:8px; padding:6px 9px; background:var(--panel); max-width:96%; align-self:flex-start; }
+  .vstrip.noaid { border-color:#7c4a03; }
+  details.raw { margin-top:5px; } details.raw summary { cursor:pointer; color:var(--muted); font-size:12px; }
+  details.raw pre { margin:4px 0 0; padding:6px; background:#000; border:1px solid var(--line); border-radius:6px; white-space:pre-wrap; overflow-wrap:anywhere; max-height:260px; overflow:auto; font-size:11.5px; }
+  details.raw .rawnote { font-size:11.5px; color:var(--muted); margin-top:4px; }
+  .errnote { font-size:12px; color:#fca5a5; align-self:flex-start; }
+  @media (max-width: 800px) { #chat.cmpmode { flex-direction:column; overflow-y:auto; } .col { overflow:visible; } main { flex-direction:column; } #log { border-left:0; border-top:1px solid var(--line); max-height:35vh; } }
 </style>
 </head>
 <body>
@@ -112,6 +127,9 @@
   <span class="seg" id="seg" title="Chat: plain answers. Agent: Claude can use tools through MCP.">
     <button type="button" id="mChat" class="on">Chat</button><button type="button" id="mAgent">Agent</button>
   </span>
+  <span class="seg" id="viewSeg" title="Single: one answer. Side by side: the same message goes to Claude directly (left) and through AI Defense (right).">
+    <button type="button" id="vSingle" class="on">Single</button><button type="button" id="vCmp">Side by side</button>
+  </span>
   <span class="spacer"></span>
   <label id="routeWrap">Route
     <select id="route" title="Choose how this message reaches Claude">
@@ -120,7 +138,7 @@
     </select>
   </label>
 </header>
-<main>
+<main id="main">
   <section id="chat"></section>
   <aside id="log"><div id="outbox"></div><strong>AI Defense verdicts</strong><p class="muted">Each turn shows what AI Defense decided.</p></aside>
 </main>
@@ -149,6 +167,8 @@ const $ = id => document.getElementById(id);
 const chat = $('chat'), logEl = $('log'), q = $('q'), f = $('composer'), pendingEl = $('pending'), errEl = $('err');
 let history = [];      // {role, content, attachments:[{name, data, mime}]}
 let pending = [];      // files chosen for the next message
+let cmpHist = {direct: [], protected: []};   // side-by-side view: one conversation per side
+let viewPref = 'single', view = 'single', colL = null, colR = null;
 let scenario = null;   // the multi-turn scenario being played (prompt library)
 let turnCounter = 0, lastTurn = {};   // bumped whenever a turn ends: lets the scenario player wait for it
 let info = {limits: {max_file_bytes: 5242880, max_files_per_message: 5, max_total_attachment_bytes: 20971520}};
@@ -167,7 +187,10 @@ fetch('/api/info').then(r => r.json()).then(i => {
     try { if (localStorage.getItem('labbot-mode') === 'agent') setMode('agent'); } catch (e) {}
   }
   if (i.allow_direct) {
-    $('routeWrap').style.display = 'flex';
+    $('viewSeg').style.display = 'flex';
+    try { if (localStorage.getItem('labbot-view') === 'compare') viewPref = 'compare'; } catch (e) {}
+    applyView();
+    $('routeWrap').style.display = view === 'compare' ? 'none' : 'flex';
     try { const r = localStorage.getItem('labbot-route'); if (r === 'direct' || r === 'protected') $('route').value = r; } catch (e) {}
     styleRoute();
   }
@@ -196,13 +219,35 @@ function setMode(m) {
     AGENT_EXAMPLES.forEach(([label, text]) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.title = text; b.onclick = () => { q.value = text; q.focus(); }; ex.appendChild(b); });
     loadOutbox();
   } else $('outbox').style.display = 'none';
-  updateFlow();
+  updateFlow(); applyView();
   try { localStorage.setItem('labbot-mode', m); } catch (e) {}
 }
 $('mChat').onclick = () => setMode('chat'); $('mAgent').onclick = () => setMode('agent');
 
 function styleRoute() { $('route').classList.toggle('direct', $('route').value === 'direct'); }
 $('route').addEventListener('change', () => { styleRoute(); try { localStorage.setItem('labbot-route', $('route').value); } catch (e) {} });
+
+// ---------- single / side-by-side view ----------
+function buildChat() {
+  chat.innerHTML = ''; chat.classList.toggle('cmpmode', view === 'compare'); $('main').classList.toggle('cmp', view === 'compare');
+  colL = colR = null;
+  if (view !== 'compare') return;
+  const mk = (cls, title, sub) => { const c = document.createElement('div'); c.className = 'col';
+    c.innerHTML = '<div class="colhead ' + cls + '">' + title + '<small>' + esc(sub) + '</small></div>'; chat.appendChild(c); return c; };
+  colL = mk('l', '⚠ Without AI Defense', 'direct to Claude · ' + (info.model_direct || ''));
+  colR = mk('r', '🛡 With AI Defense', (info.aidefense_mode === 'gateway' ? 'via the AI Defense gateway' : 'inspected by the AI Defense API') + ' · ' + (info.model || ''));
+}
+function applyView() {
+  const want = (viewPref === 'compare' && info.allow_direct && mode === 'chat') ? 'compare' : 'single';
+  $('vSingle').classList.toggle('on', viewPref !== 'compare'); $('vCmp').classList.toggle('on', viewPref === 'compare');
+  $('viewSeg').style.opacity = mode === 'agent' ? .5 : 1;
+  $('vCmp').title = mode === 'agent' ? 'Side by side is available in Chat mode' : '';
+  if (want === view) return;
+  view = want; resetChat();
+  $('routeWrap').style.display = info.allow_direct && view !== 'compare' ? 'flex' : 'none';
+}
+function setViewPref(v) { viewPref = v; try { localStorage.setItem('labbot-view', v); } catch (e) {} applyView(); }
+$('vSingle').onclick = () => setViewPref('single'); $('vCmp').onclick = () => setViewPref('compare');
 
 // ---------- attachments ----------
 const toB64 = file => new Promise((res, rej) => {
@@ -211,7 +256,7 @@ const toB64 = file => new Promise((res, rej) => {
   r.onerror = () => rej(new Error('Could not read ' + file.name));
   r.readAsDataURL(file);
 });
-const historyBytes = () => history.reduce((n, m) => n + (m.attachments || []).reduce((a, x) => a + x.size, 0), 0);
+const historyBytes = () => (view === 'compare' ? cmpHist.direct : history).reduce((n, m) => n + (m.attachments || []).reduce((a, x) => a + x.size, 0), 0);
 
 async function addFiles(fileList) {
   setErr('');
@@ -394,7 +439,26 @@ function renderMarkdown(text) {
 }
 
 // ---------- chat ----------
-function bubble(text, cls, attachments, md) {
+function verdictHtml(data) {
+  const gv = data.gateway_verdict;
+  if (data.route === 'direct') return '<div class="muted">No AI Defense inspection on this message.</div>';
+  if (data.mode === 'gateway') return gv
+    ? `<div>Gateway: <span class="bad">BLOCKED (${esc(gv.stage)})</span></div>
+       <div class="muted">rules: ${esc(gv.rules.join(', ') || 'n/a')}</div>
+       <div class="muted">${esc(gv.verdict)}</div>`
+    : '<div>Gateway: <span class="ok">ALLOWED</span> <span class="muted">inspected inline by AI Defense</span></div>';
+  return `<div>Prompt: ${verdict(data.prompt_inspection)}</div><div>Response: ${verdict(data.response_inspection)}</div>`;
+}
+// the raw answer of AI Defense, collapsed until the arrow is clicked
+function rawHtml(data) {
+  if (!data.aidefense_raw) return '';
+  const note = data.mode === 'gateway'
+    ? 'What the AI Defense gateway sent back (through LiteLLM). When it blocks, the verdict is the text of the message.'
+    : 'The JSON the AI Defense Inspection API returned (prompt stage, and response stage when it ran).';
+  return `<details class="raw"><summary>Raw AI Defense response</summary><div class="rawnote">${esc(note)}</div><pre>${esc(JSON.stringify(data.aidefense_raw, null, 2))}</pre></details>`;
+}
+function bubble(text, cls, attachments, md, host) {
+  host = host || chat;
   const d = document.createElement('div'); d.className = 'msg ' + cls;
   if (attachments && attachments.length) {
     const w = document.createElement('div'); w.className = 'files';
@@ -402,7 +466,7 @@ function bubble(text, cls, attachments, md) {
     d.appendChild(w);
   }
   const t = document.createElement('div'); if (md) t.appendChild(renderMarkdown(text)); else t.textContent = text; d.appendChild(t);
-  chat.appendChild(d); chat.scrollTop = chat.scrollHeight; return t;
+  host.appendChild(d); host.scrollTop = host.scrollHeight; return t;
 }
 
 function verdict(v) {
@@ -424,6 +488,7 @@ f.addEventListener('submit', async e => {
   setErr('');
   const route = info.allow_direct ? $('route').value : 'protected';
   const atts = pending; pending = []; renderPending(); q.value = '';
+  if (view === 'compare') { await compareTurn(text, atts); return; }
   const userBubble = bubble(text || '(files only)', 'user', atts);
   history.push({role: 'user', content: text, attachments: atts, route});
   if (mode === 'agent') { await agentTurn(text, atts, route, userBubble); return; }
@@ -445,14 +510,7 @@ f.addEventListener('submit', async e => {
     const gv = data.gateway_verdict, direct = data.route === 'direct';
     const routeLine = direct ? '<div class="warn">Route: DIRECT to Claude, AI Defense bypassed</div>'
                              : '<div class="muted">Route: via AI Defense</div>';
-    let body;
-    if (direct) body = '<div class="muted">No AI Defense inspection on this message.</div>';
-    else if (data.mode === 'gateway') body = gv
-      ? `<div>Gateway: <span class="bad">BLOCKED (${esc(gv.stage)})</span></div>
-         <div class="muted">rules: ${esc(gv.rules.join(', ') || 'n/a')}</div>
-         <div class="muted">${esc(gv.verdict)}</div>`
-      : '<div>Gateway: <span class="ok">ALLOWED</span> <span class="muted">inspected inline by AI Defense</span></div>';
-    else body = `<div>Prompt: ${verdict(data.prompt_inspection)}</div><div>Response: ${verdict(data.response_inspection)}</div>`;
+    const body = verdictHtml(data) + rawHtml(data);
     const hint = (data.blocked && !direct && history.some(m => m.route === 'direct'))
       ? '<div class="warn">Hint: earlier messages in this chat were sent via Direct. They are inspected again now and may be what AI Defense blocked. Click Reset to start clean.</div>' : '';
     const fl = (data.files || []).map(x => `<div class="muted">📎 ${esc(x.name)} · ${esc(x.kind)}${x.pages ? ' · ' + x.pages + ' pages' : ''}${x.entries != null ? ' · ' + x.entries + ' entries, ' + x.read + ' read, ' + x.skipped + ' skipped' : ''}${x.chars ? ' · ' + x.chars + ' chars read' : ''}${x.truncated ? ' · truncated' : ''}</div>`
@@ -468,6 +526,43 @@ f.addEventListener('submit', async e => {
     $('send').disabled = false; turnDone({failed: true, message: err.message});
   } finally { $('send').disabled = false; }
 });
+// ---------- side by side: the same message to both routes at the same time ----------
+async function compareSide(route, col, text, atts) {
+  const hist = cmpHist[route];
+  const ub = bubble(text || '(files only)', 'user', atts, false, col);
+  hist.push({role: 'user', content: text, attachments: atts});
+  const out = bubble('…', 'bot', null, false, col);
+  try {
+    const payload = hist.map(m => ({role: m.role, content: m.content, attachments: (m.attachments || []).map(a => ({name: a.name, data: a.data}))}));
+    const r = await fetch('/api/chat', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({messages: payload, route})});
+    let data = {}; try { data = await r.json(); } catch (_) {}
+    if (!r.ok) throw new Error(typeof data.detail === 'string' ? data.detail : (data.detail ? 'Invalid request' : 'HTTP ' + r.status));
+    if (data.blocked) { out.textContent = data.reply; out.parentElement.classList.add('blocked'); hist.pop(); }
+    else { out.replaceChildren(renderMarkdown(data.reply)); hist.push({role: 'assistant', content: data.reply}); }
+    const strip = document.createElement('div'); strip.className = 'vstrip' + (route === 'direct' ? ' noaid' : '');
+    const secs = data.latency_ms != null ? (data.latency_ms / 1000).toFixed(1) + ' s' : '';
+    strip.innerHTML = (route === 'direct'
+        ? '<div class="warn">No AI Defense inspection on this route</div>'
+        : verdictHtml(data)) +
+      `<div class="muted">${esc([secs, data.model, 'id ' + String(data.request_id || '').slice(0, 8)].filter(Boolean).join(' · '))}</div>` +
+      (route === 'direct' ? '' : rawHtml(data));
+    col.appendChild(strip); col.scrollTop = col.scrollHeight;
+    return {blocked: !!data.blocked};
+  } catch (err) {
+    out.parentElement.remove(); ub.parentElement.remove(); hist.pop();
+    const n = document.createElement('div'); n.className = 'errnote'; n.textContent = '⚠ ' + (route === 'direct' ? 'Direct' : 'AI Defense') + ' side failed: ' + err.message; col.appendChild(n);
+    col.scrollTop = col.scrollHeight;
+    return {failed: true, message: err.message};
+  }
+}
+async function compareTurn(text, atts) {
+  $('send').disabled = true;
+  try {
+    const [d, p] = await Promise.all([compareSide('direct', colL, text, atts), compareSide('protected', colR, text, atts)]);
+    if (d.failed && p.failed) { q.value = text; pending = atts; renderPending(); setErr(p.message); turnDone({failed: true, message: p.message}); }
+    else turnDone({blocked: !!p.blocked});
+  } finally { $('send').disabled = false; }
+}
 // ---------- agent mode ----------
 const pl = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
 const short = (t, n) => { t = String(t ?? ''); return t.length > n ? t.slice(0, n) + '…' : t; };
@@ -619,7 +714,7 @@ async function loadOutbox() {
 }
 
 q.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); f.requestSubmit(); } });
-function resetChat() { history = []; pending = []; renderPending(); chat.innerHTML = ''; setErr(''); }
+function resetChat() { history = []; cmpHist = {direct: [], protected: []}; pending = []; renderPending(); buildChat(); setErr(''); }
 $('reset').onclick = () => {
   resetChat();
   if (scenario) { scenario.epoch++; scenario.idx = 0; scenario.blockedAt = null; scenario.failed = null; scenario.running = false; scenario.cancel = true; renderScenario(); }
@@ -723,7 +818,7 @@ $('libItem').onchange = () => {
 
 // ----- multi-turn player: sends the turns one after another so AI Defense sees the whole conversation -----
 function startScenario(it) {
-  if (history.length) resetChat();                              // a scenario needs a clean conversation
+  if (history.length || cmpHist.direct.length || cmpHist.protected.length) resetChat();                              // a scenario needs a clean conversation
   scenario = {it, turns: tx(it).turns, title: tx(it).title, idx: 0, blockedAt: null, failed: null, running: false, cancel: false, epoch: 0};
   q.value = ''; renderScenario();
 }

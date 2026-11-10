@@ -32,6 +32,7 @@ class InspectionResult:
     request_id: str | None = None   # x-aidefense-request-id we sent (MCP inspection)
     severity: str | None = None
     tool: str | None = None         # MCP tool name, when relevant
+    raw: dict | None = None         # the JSON body exactly as AI Defense returned it (shown in the UI, collapsed)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -93,6 +94,7 @@ class AIDefenseClient:
             explanation=data.get("explanation"),
             event_id=data.get("event_id") or None,
             severity=data.get("severity"),
+            raw=data if isinstance(data, dict) else None,
         )
         result.blocked = (mode == "enforce") and not result.is_safe
         log.info("AI Defense %s verdict: safe=%s action=%s classes=%s rules=%s",
@@ -156,7 +158,7 @@ class MCPInspector:
             rules=[str(r.get("rule_name") or r.get("name") or r) if isinstance(r, dict) else str(r)
                    for r in (result.get("rules") or [])],
             explanation=result.get("explanation"), event_id=result.get("event_id") or None,
-            severity=result.get("severity"), request_id=request_id, tool=tool)
+            severity=result.get("severity"), request_id=request_id, tool=tool, raw=data if isinstance(data, dict) else None)
         res.blocked = mode == "enforce" and not res.is_safe
         log.info("AI Defense %s verdict: safe=%s action=%s rules=%s event=%s tool=%s",
                  stage, res.is_safe, res.action, res.rules, res.event_id, tool)

@@ -290,6 +290,27 @@ To remove the direct option (for a shared demo, so nobody can bypass AI Defense)
 `k8s/labbot-config.yaml` and run `./scripts/deploy.sh`. The server then also refuses direct requests.
 Note that the direct route sits in the same LiteLLM, which anyone with the master key can also call directly.
 
+## Side by side view
+
+Switch **Single / Side by side** (top bar, Chat mode) to compare the two routes at once. The message you send goes **at the same time**
+to Claude **directly** (left, no AI Defense) and **through AI Defense** (right):
+
+| Left: without AI Defense | Right: with AI Defense |
+|---|---|
+| The answer of Claude as it is | The answer, or the block message |
+| Time and model | Verdict (ALLOWED / BLOCKED, rules), time, model |
+| | **Raw AI Defense response**: hidden, click the arrow to expand |
+
+- **Raw response.** Gateway mode: what the gateway returned through LiteLLM (HTTP status, the LiteLLM / AI Defense headers and the
+  message body; a block verdict is the text of the message). API mode: the JSON of the Inspection API (`is_safe`, `action`, `rules`,
+  `event_id`...). The `event_id` lets you find the event in the dashboard. Only harmless headers are kept (no cookies, no keys).
+  The raw response also appears in the verdict card of the Single view.
+- **Two conversations.** Each side keeps its own history. When AI Defense blocks a message the right side drops it (as the Single view
+  does) and the left side keeps it, so later turns can differ. **Reset** clears both.
+- The prompt library and the multi-turn player work in this view (each turn goes to both sides). Agent mode always uses the Single view.
+- The view needs the direct route (`ALLOW_DIRECT_ROUTE=true`, the default). The choice is remembered in the browser.
+- Both calls use your Anthropic key, so each message costs about twice as much as in the Single view.
+
 ## 10. Updating (pull new versions)
 
 See [docs/WORKFLOW.md](docs/WORKFLOW.md). Short version:

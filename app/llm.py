@@ -30,6 +30,10 @@ class LLMReply:
     model: str
     stop_reason: str | None
     refused: bool = False
+    raw: dict | None = None  # what the gateway returned: http status, a few headers, the message body
+
+
+RAW_HEADER_PREFIXES = ("x-litellm-", "x-aidefense", "x-cisco", "request-id", "x-request-id")
 
 
 class GatewayClaudeClient:
@@ -44,20 +48,24 @@ class GatewayClaudeClient:
 
     async def chat(self, messages: list[dict], model: str | None = None) -> LLMReply:
         """messages: Anthropic format; content is a string or a list of content blocks (text/image)."""
-        resp = await self.client.messages.create(
+        wire = await self.client.messages.with_raw_response.create(
             model=model or self.s.llm_model,
             max_tokens=self.s.llm_max_tokens,
             system=self.s.system_prompt,
             messages=messages,
         )
+        resp = wire.parse()
+        raw = {"http_status": wire.status_code,
+               "headers": {k: v for k, v in wire.headers.items() if k.lower().startswith(RAW_HEADER_PREFIXES)},
+               "body": resp.model_dump(mode="json", exclude_none=True)}
         if resp.stop_reason == "refusal":
             log.warning("Claude declined the request")
-            return LLMReply("Claude declined to answer this request.", resp.model, resp.stop_reason, refused=True)
+            return LLMReply("Claude declined to answer this request.", resp.model, resp.stop_reason, refused=True, raw=raw)
 
         text = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text").strip()
         if resp.stop_reason == "max_tokens":
             text += "\n\n[response truncated: max_tokens reached]"
-        return LLMReply(text or "(empty response)", resp.model, resp.stop_reason)
+        return LLMReply(text or "(empty response)", resp.model, resp.stop_reason, raw=raw)
 
     async def agent_step(self, messages: list[dict], tools: list[dict], model: str, system: str,
                          max_tokens: int) -> AgentReply:

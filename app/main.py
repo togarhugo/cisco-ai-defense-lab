@@ -153,7 +153,12 @@ async def chat(req: ChatRequest, request: Request):
     meta = {"src_app": "labbot", "client_transaction_id": rid}
     out = {"request_id": rid, "mode": settings.aidefense_mode, "route": req.route, "blocked": False,
            "blocked_stage": None, "prompt_inspection": None, "response_inspection": None,
-           "gateway_error": None, "gateway_verdict": None, "files": files, "reply": None, "model": None}
+           "gateway_error": None, "gateway_verdict": None, "files": files, "reply": None, "model": None,
+           "aidefense_raw": None, "latency_ms": None}
+
+    def done() -> dict:
+        out["latency_ms"] = round((time.monotonic() - t0) * 1000)
+        return out
 
     # (1) API mode only: inspect the prompt before it reaches Claude (skipped on the direct route)
     if direct:
@@ -164,7 +169,8 @@ async def chat(req: ChatRequest, request: Request):
     if p is not None and p.blocked:
         out.update(blocked=True, blocked_stage="prompt", reply=BLOCK_PROMPT_MSG)
         log.info("rid=%s BLOCKED at prompt stage (%.0f ms)", rid, (time.monotonic() - t0) * 1000)
-        return out
+        out["aidefense_raw"] = {"source": "inspection-api", "prompt": p.raw}
+        return done()
 
     # (2) Call Claude
     try:
@@ -190,8 +196,9 @@ async def chat(req: ChatRequest, request: Request):
             msg = BLOCK_GATEWAY_RESPONSE_MSG if verdict["stage"] == "response" else BLOCK_GATEWAY_PROMPT_MSG
             out.update(blocked=True, blocked_stage=f"gateway-{verdict['stage']}", reply=msg,
                        gateway_verdict=verdict)
+            out["aidefense_raw"] = {"source": "gateway", **(r.raw or {})}
             log.info("rid=%s BLOCKED by gateway (%s): %s", rid, verdict["stage"], verdict["rules"])
-            return out
+            return done()
 
     # (3) Inspect Claude's response before it reaches the user
     if settings.aidefense_inspect_response and not r.refused and not direct:
@@ -200,11 +207,16 @@ async def chat(req: ChatRequest, request: Request):
         if rs.blocked:
             out.update(blocked=True, blocked_stage="response", reply=BLOCK_RESPONSE_MSG)
             log.info("rid=%s BLOCKED at response stage (%.0f ms)", rid, (time.monotonic() - t0) * 1000)
-            return out
+            out["aidefense_raw"] = {"source": "inspection-api", "prompt": p.raw if p else None, "response": rs.raw}
+            return done()
 
+    if not direct:
+        out["aidefense_raw"] = ({"source": "gateway", **(r.raw or {})} if settings.aidefense_mode == "gateway"
+                                else {"source": "inspection-api", "prompt": p.raw if p else None,
+                                      "response": out["response_inspection"] and out["response_inspection"].get("raw")})
     out["reply"] = r.text
     log.info("rid=%s allowed route=%s files=%d (%.0f ms)", rid, req.route, len(files), (time.monotonic() - t0) * 1000)
-    return out
+    return done()
 
 
 # ---------------------------------------------------------------- agent mode

@@ -2,6 +2,18 @@
 
 All notable changes to this project. Versions follow [SemVer](https://semver.org): MAJOR.MINOR.PATCH.
 
+## [1.9.0] - 2026-11-10
+### Added
+- **Side by side view** (Chat mode): one message goes at the same time to Claude directly (left, without AI Defense) and through
+  AI Defense (right). Each side has its own conversation, answer, timing and model. Switch with **Single / Side by side**; remembered in the browser.
+- **Raw AI Defense response**, collapsed by default with an arrow to expand (right column, and in the verdict card of the Single view).
+  Gateway mode: HTTP status, LiteLLM / AI Defense headers and the message body returned by the gateway. API mode: the JSON of the Inspection API.
+- `POST /api/chat` returns `aidefense_raw` and `latency_ms`.
+### Notes
+- Only headers starting with `x-litellm-`, `x-aidefense`, `x-cisco` or `request-id` are exposed.
+- Agent mode keeps the Single view. A side by side message uses the Anthropic key twice.
+- Tests: `tests/test_raw.py` and `tests/browser/compare.test.js` (browser tests are not part of CI).
+
 ## [1.8.0] - 2026-11-04
 ### Added
 - **Language selection for the prompt library**: a dropdown with **English** and **Bahasa Indonesia**. All 91 prompts (single and
