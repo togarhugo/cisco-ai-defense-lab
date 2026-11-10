@@ -15,4 +15,4 @@ images:
   - name: postgres
     newTag: "16-alpine"
   - name: ghcr.io/togarhugo/cisco-ai-defense-lab
-    newTag: "1.9.0"   # bumped automatically by scripts/release.sh
+    newTag: "1.9.1"   # bumped automatically by scripts/release.sh

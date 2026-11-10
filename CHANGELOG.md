@@ -2,6 +2,14 @@
 
 All notable changes to this project. Versions follow [SemVer](https://semver.org): MAJOR.MINOR.PATCH.
 
+## [1.9.1] - 2026-11-10
+### Fixed
+- **Every chat message failed with HTTP 500 in v1.9.0** (both sides of the side by side view, and the single view too). The raw
+  response capture read the gateway reply without `await`, which the async Anthropic client requires. Now awaited, and a problem
+  while capturing the raw view can no longer break a turn.
+- Test: `test_real_sdk_against_a_local_gateway` runs the real SDK against a local HTTP server; the earlier stub hid this bug.
+  Agent mode was not affected.
+
 ## [1.9.0] - 2026-11-10
 ### Added
 - **Side by side view** (Chat mode): one message goes at the same time to Claude directly (left, without AI Defense) and through

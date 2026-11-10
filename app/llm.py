@@ -54,10 +54,14 @@ class GatewayClaudeClient:
             system=self.s.system_prompt,
             messages=messages,
         )
-        resp = wire.parse()
-        raw = {"http_status": wire.status_code,
-               "headers": {k: v for k, v in wire.headers.items() if k.lower().startswith(RAW_HEADER_PREFIXES)},
-               "body": resp.model_dump(mode="json", exclude_none=True)}
+        resp = await wire.parse()          # async client: reading the body is awaited (anthropic >= 1)
+        raw = None
+        try:                               # the raw view is a bonus: never let it break a chat turn
+            raw = {"http_status": wire.status_code,
+                   "headers": {k: v for k, v in wire.headers.items() if k.lower().startswith(RAW_HEADER_PREFIXES)},
+                   "body": resp.model_dump(mode="json", exclude_none=True)}
+        except Exception:  # noqa: BLE001
+            log.warning("could not capture the raw gateway response", exc_info=True)
         if resp.stop_reason == "refusal":
             log.warning("Claude declined the request")
             return LLMReply("Claude declined to answer this request.", resp.model, resp.stop_reason, refused=True, raw=raw)

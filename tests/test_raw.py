@@ -89,7 +89,7 @@ class _Wire:
     headers = {"X-LiteLLM-Call-Id": "c1", "x-litellm-response-cost": "0.001", "set-cookie": "secret=1",
                "authorization": "Bearer nope", "request-id": "req_1"}
 
-    def parse(self):
+    async def parse(self):
         return anthropic.types.Message(id="msg_1", type="message", role="assistant", model="claude-x", stop_reason="end_turn",
                                        content=[{"type": "text", "text": "Hi there"}],
                                        usage={"input_tokens": 3, "output_tokens": 2})
@@ -109,3 +109,37 @@ async def test_client_keeps_only_harmless_headers_and_the_body():
     assert r.text == "Hi there" and r.raw["http_status"] == 200
     assert set(r.raw["headers"]) == {"X-LiteLLM-Call-Id", "x-litellm-response-cost", "request-id"}
     assert r.raw["body"]["content"][0]["text"] == "Hi there" and r.raw["body"]["usage"]["output_tokens"] == 2
+
+
+async def test_real_sdk_against_a_local_gateway():
+    """The real Anthropic SDK (not a stub) talking HTTP to a fake gateway: catches async/sync mistakes."""
+    import dataclasses, json, threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    class H(BaseHTTPRequestHandler):
+        def do_POST(self):
+            self.rfile.read(int(self.headers.get("content-length", 0)))
+            body = json.dumps({"id": "msg_1", "type": "message", "role": "assistant", "model": "claude-x",
+                               "stop_reason": "end_turn", "content": [{"type": "text", "text": "pong"}],
+                               "usage": {"input_tokens": 1, "output_tokens": 1}}).encode()
+            self.send_response(200)
+            self.send_header("content-type", "application/json")
+            self.send_header("x-litellm-call-id", "call-1")
+            self.send_header("set-cookie", "s=1")
+            self.send_header("content-length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *a):
+            pass
+
+    srv = HTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        c = GatewayClaudeClient(dataclasses.replace(settings, llm_base_url=f"http://127.0.0.1:{srv.server_port}"))
+        r = await c.chat([{"role": "user", "content": "ping"}])
+    finally:
+        srv.shutdown()
+    assert r.text == "pong"
+    assert r.raw["http_status"] == 200 and r.raw["headers"] == {"x-litellm-call-id": "call-1"}
+    assert r.raw["body"]["content"][0]["text"] == "pong"
